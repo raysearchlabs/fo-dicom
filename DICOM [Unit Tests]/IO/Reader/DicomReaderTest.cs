@@ -78,5 +78,20 @@ namespace DICOM__Unit_Tests_.IO.Reader
       Assert.Equal(dataset.Get<string>(DicomTag.SOPClassUID), "1.2.3");
       Assert.Equal(dataset.Get<string>(DicomTag.SOPInstanceUID), "1.2.4");
     }
+
+    [Fact]
+    public void Read_empty_tag()
+    {
+      var bytes = new List<byte>();
+      var dataset = ReadFragment(bytes.ToArray(), Endian.Little, explicitVr: false);
+      try
+      {
+        var test = dataset.Get<int>(DicomTag.MetersetRate);
+      }
+      catch (ArgumentException e)
+      {
+        Assert.True(e.Message.Contains("null"));
+      }
+    }
   }
 }
