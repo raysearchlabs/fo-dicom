@@ -259,12 +259,24 @@ namespace Dicom.IO
 			{
 				writer.WritePropertyName("Value");
 				writer.WriteStartArray();
-				foreach (var val in elem.Get<String[]>())
-				{
-					if (val == null || val.Equals("")) writer.WriteNull();
-					else writer.WriteRawValue(FixDS(val));
-				}
-				writer.WriteEndArray();
+			  foreach (var val in elem.Get<String[]>())
+			  {
+			    if (val == null || val.Equals("")) writer.WriteNull();
+			    else
+			    {
+			      ulong xulong;
+			      long xlong;
+			      decimal xdecimal;
+			      double xdouble;
+			      var fix = FixDS(val);
+			      if (ulong.TryParse(fix, NumberStyles.Integer, CultureInfo.InvariantCulture, out xulong)) writer.WriteValue(xulong);
+			      else if (long.TryParse(fix, NumberStyles.Integer, CultureInfo.InvariantCulture, out xlong)) writer.WriteValue(xlong);
+			      else if (decimal.TryParse(fix, NumberStyles.Float, CultureInfo.InvariantCulture, out xdecimal)) writer.WriteValue(xdecimal);
+			      else if (double.TryParse(fix, NumberStyles.Float, CultureInfo.InvariantCulture, out xdouble)) writer.WriteValue(xdouble);
+			      else throw new FormatException(string.Format("Cannot write dicom number {0} to json", val));
+			    }
+			  }
+			  writer.WriteEndArray();
 			}
 		}
 
