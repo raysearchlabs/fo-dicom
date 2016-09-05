@@ -85,6 +85,8 @@ namespace Dicom {
 			internal set { _privateCreator = value; }
 		}
 
+		public IEnumerable<DicomPrivateCreator> PrivateCreators { get { return _creators.Values; } }
+
 		public DicomDictionaryEntry this[DicomTag tag] {
 			get {
 				if (_private != null && tag.PrivateCreator != null) {
