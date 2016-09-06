@@ -19,7 +19,7 @@ namespace Dicom {
 			if (items != null) {
 				foreach (DicomItem item in items)
 					if (item != null)
-						_items[item.Tag] = item;
+                        _items[item.Tag.IsPrivate ? GetPrivateTag(item.Tag) : item.Tag] = item;
 			}
 		}
 
@@ -27,7 +27,7 @@ namespace Dicom {
 			if (items != null) {
 				foreach (DicomItem item in items)
 					if (item != null)
-						_items[item.Tag] = item;
+                        _items[item.Tag.IsPrivate ? GetPrivateTag(item.Tag) : item.Tag] = item;
 			}
 		}
 
@@ -57,7 +57,7 @@ namespace Dicom {
 
 		public T Get<T>(DicomTag tag, int n, T defaultValue) {
 			DicomItem item = null;
-			if (!_items.TryGetValue(tag, out item))
+            if (!_items.TryGetValue(tag.IsPrivate ? GetPrivateTag(tag) : tag, out item))
 				return defaultValue;
 
 			if (typeof(T) == typeof(DicomItem))
@@ -425,7 +425,7 @@ namespace Dicom {
 		/// <param name="tag">DICOM tag to test</param>
 		/// <returns><c>True</c> if a DICOM item with the specified tag already exists.</returns>
 		public bool Contains(DicomTag tag) {
-			return _items.ContainsKey(tag);
+            return _items.ContainsKey(tag.IsPrivate ? GetPrivateTag(tag) : tag);
 		}
 
 		/// <summary>
@@ -435,7 +435,7 @@ namespace Dicom {
 		/// <returns>Current Dataset</returns>
 		public DicomDataset Remove(params DicomTag[] tags) {
 			foreach (DicomTag tag in tags)
-				_items.Remove(tag);
+                _items.Remove(tag.IsPrivate ? GetPrivateTag(tag) : tag);
 			return this;
 		}
 
@@ -446,7 +446,7 @@ namespace Dicom {
 		/// <returns>Current Dataset</returns>
 		public DicomDataset Remove(Func<DicomItem, bool> selector) {
 			foreach (DicomItem item in _items.Values.Where(selector).ToArray())
-				_items.Remove(item.Tag);
+                _items.Remove(item.Tag.IsPrivate ? GetPrivateTag(item.Tag) : item.Tag);
 			return this;
 		}
 

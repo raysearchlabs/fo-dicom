@@ -54,7 +54,7 @@ namespace DICOM__Unit_Tests_
       DicomPrivateCreator privateCreator = dict.GetPrivateCreator("TESTCREATOR");
       DicomDictionary privDict = dict[privateCreator];
 
-      var dictEntry2 = new DicomDictionaryEntry(new DicomTag(0x0011, 0x1010), "TestPrivTagName", "TestPrivTagKeyword", DicomVM.VM_1, false, DicomVR.DT);
+      var dictEntry2 = new DicomDictionaryEntry(DicomMaskedTag.Parse("0011", "xx10"), "TestPrivTagName", "TestPrivTagKeyword", DicomVM.VM_1, false, DicomVR.DT);
 
       privDict.Add(dictEntry2);
       dict.Add(dictEntry1);
