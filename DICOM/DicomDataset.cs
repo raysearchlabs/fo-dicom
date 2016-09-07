@@ -166,7 +166,8 @@ namespace Dicom {
 
 		public DicomDataset Add<T>(DicomTag tag, params T[] values)
 		{
-		    var entry = DicomDictionary.Default[tag.IsPrivate ? GetPrivateTag(tag) : tag];
+		    tag = tag.IsPrivate ? GetPrivateTag(tag) : tag;
+		    var entry = DicomDictionary.Default[tag];
 			if (entry == null)
 				throw new DicomDataException("Tag {0} not found in DICOM dictionary. Only dictionary tags may be added implicitly to the dataset.", tag);
 
