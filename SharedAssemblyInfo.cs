@@ -6,10 +6,10 @@ using System.Reflection;
 
 [assembly: AssemblyCompanyAttribute("Fellow Oak")]
 [assembly: AssemblyProductAttribute("Fellow Oak DICOM for .NET")]
-[assembly: AssemblyCopyrightAttribute("Copyright © Fellow Oak, Inc. 2012-2015")]
+[assembly: AssemblyCopyrightAttribute("Copyright ï¿½ Fellow Oak, Inc. 2012-2015")]
 [assembly: AssemblyTrademarkAttribute("")]
 [assembly: AssemblyCultureAttribute("")]
 
-[assembly: AssemblyVersionAttribute("1.0.56.0")]
-[assembly: AssemblyFileVersion("1.0.56.0")]
+[assembly: AssemblyVersionAttribute("1.0.57.0")]
+[assembly: AssemblyFileVersion("1.0.57.0")]
 [assembly: AssemblyInformationalVersionAttribute("1.0.3")]
