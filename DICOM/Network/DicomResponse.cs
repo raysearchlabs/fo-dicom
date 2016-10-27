@@ -31,7 +31,10 @@ namespace Dicom.Network {
 			}
 			set {
 				Command.Add(DicomTag.Status, value.Code);
-				Command.Add(DicomTag.ErrorComment, value.ErrorComment);
+			    if (string.IsNullOrWhiteSpace(value.ErrorComment))
+			        Command.Remove(DicomTag.ErrorComment);
+                else
+				    Command.Add(DicomTag.ErrorComment, value.ErrorComment);
 			}
 		}
 

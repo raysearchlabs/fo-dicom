@@ -19,7 +19,7 @@ namespace Dicom {
 			if (items != null) {
 				foreach (DicomItem item in items)
 					if (item != null)
-                        _items[item.Tag.IsPrivate ? GetPrivateTag(item.Tag) : item.Tag] = item;
+                        _items[item.Tag.IsPrivate ? GetPrivateTag(item.Tag, true) : item.Tag] = item;
 			}
 		}
 
@@ -27,7 +27,7 @@ namespace Dicom {
 			if (items != null) {
 				foreach (DicomItem item in items)
 					if (item != null)
-                        _items[item.Tag.IsPrivate ? GetPrivateTag(item.Tag) : item.Tag] = item;
+                        _items[item.Tag.IsPrivate ? GetPrivateTag(item.Tag, true) : item.Tag] = item;
 			}
 		}
 
@@ -56,11 +56,24 @@ namespace Dicom {
 		}
 
 		public T Get<T>(DicomTag tag, int n, T defaultValue) {
-			DicomItem item = null;
-            if (!_items.TryGetValue(tag.IsPrivate ? GetPrivateTag(tag) : tag, out item))
-				return defaultValue;
+			DicomItem item;
 
-			if (typeof(T) == typeof(DicomItem))
+		    if (tag.IsPrivate)
+		    {
+		        var privateTag = GetPrivateTag(tag, false);
+		        if (privateTag == null)
+		            return defaultValue;
+
+		        if (!_items.TryGetValue(privateTag, out item))
+		            return defaultValue;
+		    }
+		    else
+		    {
+		        if (!_items.TryGetValue(tag, out item))
+		            return defaultValue;
+		    }
+
+		    if (typeof(T) == typeof(DicomItem))
 				return (T)(object)item;
 
 			if (typeof(T).IsSubclassOf(typeof(DicomItem)))
@@ -98,12 +111,13 @@ namespace Dicom {
 			throw new DicomDataException("Unable to get a value type of {0} from DICOM item of type {1}", typeof(T), item.GetType());
 		}
 
-		/// <summary>
-		/// Converts a dictionary tag to a valid private tag. Creates the private creator tag if needed.
-		/// </summary>
-		/// <param name="tag">Dictionary DICOM tag</param>
-		/// <returns>Private DICOM tag</returns>
-		public DicomTag GetPrivateTag(DicomTag tag) {
+	    /// <summary>
+	    /// Converts a dictionary tag to a valid private tag. Creates the private creator tag if needed.
+	    /// </summary>
+	    /// <param name="tag">Dictionary DICOM tag</param>
+	    /// <param name="createTag">Whether the PrivateCreator tag should be created</param>
+	    /// <returns>Private DICOM tag</returns>
+	    public DicomTag GetPrivateTag(DicomTag tag, bool createTag) {
 			// not a private tag
 			if (!tag.IsPrivate)
 				return tag;
@@ -121,12 +135,14 @@ namespace Dicom {
 				return tag;
 
 			ushort group = 0x0010;
-			for (; ; group++) {
+			for (; group <= 0x00ff; group++) {
 				var creator = new DicomTag(tag.Group, group);
-				if (!Contains(creator)) {
+				if (!Contains(creator))
+				{
+				    if (!createTag)
+				        return null;
 					Add(new DicomLongString(creator, tag.PrivateCreator.Creator));
-					break;
-				}
+				} 
 
 				var value = Get<string>(creator, String.Empty);
 				if (tag.PrivateCreator.Creator == value)
@@ -141,7 +157,7 @@ namespace Dicom {
 				foreach (DicomItem item in items) {
 					if (item != null) {
 						if (item.Tag.IsPrivate)
-							_items[GetPrivateTag(item.Tag)] = item;
+							_items[GetPrivateTag(item.Tag, true)] = item;
 						else
 							_items[item.Tag] = item;
 					}
@@ -155,7 +171,7 @@ namespace Dicom {
 				foreach (DicomItem item in items) {
 					if (item != null) {
 						if (item.Tag.IsPrivate)
-							_items[GetPrivateTag(item.Tag)] = item;
+							_items[GetPrivateTag(item.Tag, true)] = item;
 						else
 							_items[item.Tag] = item;
 					}
@@ -166,7 +182,7 @@ namespace Dicom {
 
 		public DicomDataset Add<T>(DicomTag tag, params T[] values)
 		{
-		    tag = tag.IsPrivate ? GetPrivateTag(tag) : tag;
+		    tag = tag.IsPrivate ? GetPrivateTag(tag, true) : tag;
 		    var entry = DicomDictionary.Default[tag];
 			if (entry == null)
 				throw new DicomDataException("Tag {0} not found in DICOM dictionary. Only dictionary tags may be added implicitly to the dataset.", tag);
@@ -425,8 +441,16 @@ namespace Dicom {
 		/// </summary>
 		/// <param name="tag">DICOM tag to test</param>
 		/// <returns><c>True</c> if a DICOM item with the specified tag already exists.</returns>
-		public bool Contains(DicomTag tag) {
-            return _items.ContainsKey(tag.IsPrivate ? GetPrivateTag(tag) : tag);
+		public bool Contains(DicomTag tag)
+		{
+		    if (tag.IsPrivate)
+		    {
+		        var privateTag = GetPrivateTag(tag, false);
+		        if (privateTag == null)
+		            return false;
+		        return _items.ContainsKey(privateTag);
+		    }
+		    return _items.ContainsKey(tag);
 		}
 
 		/// <summary>
@@ -435,9 +459,21 @@ namespace Dicom {
 		/// <param name="tags">DICOM tags to remove</param>
 		/// <returns>Current Dataset</returns>
 		public DicomDataset Remove(params DicomTag[] tags) {
-			foreach (DicomTag tag in tags)
-                _items.Remove(tag.IsPrivate ? GetPrivateTag(tag) : tag);
-			return this;
+		    foreach (DicomTag tag in tags)
+		    {
+		        if (tag.IsPrivate)
+		        {
+		            var privateTag = GetPrivateTag(tag, false);
+		            if (privateTag == null)
+		                continue;
+		            _items.Remove(privateTag);
+		        }
+		        else
+		        {
+		            _items.Remove(tag);
+		        }
+		    }
+		    return this;
 		}
 
 		/// <summary>
@@ -445,10 +481,11 @@ namespace Dicom {
 		/// </summary>
 		/// <param name="selector">Selector function</param>
 		/// <returns>Current Dataset</returns>
-		public DicomDataset Remove(Func<DicomItem, bool> selector) {
-			foreach (DicomItem item in _items.Values.Where(selector).ToArray())
-                _items.Remove(item.Tag.IsPrivate ? GetPrivateTag(item.Tag) : item.Tag);
-			return this;
+		public DicomDataset Remove(Func<DicomItem, bool> selector)
+		{
+		    foreach (DicomItem item in _items.Values.Where(selector).ToArray())
+		        _items.Remove(item.Tag);
+		    return this;
 		}
 
 		/// <summary>

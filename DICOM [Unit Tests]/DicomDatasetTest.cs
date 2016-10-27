@@ -73,7 +73,112 @@ namespace DICOM__Unit_Tests_
             var ds2 = ParseDicom_(bytes);
 
             Assert.Equal(DicomVR.CS, ds2.Get<DicomVR>(dictEntry.Tag));
+        }
 
+        [Fact]
+        public void GettingPrivateTagsChangesNothingWhenNotPresent()
+        {
+            var dataSet = new DicomDataset
+            {
+                {DicomTag.SOPInstanceUID, "2.999.1241"},
+                {DicomTag.SOPClassUID, "2.999.1242"}
+            };
+
+            DicomPrivateCreator privateCreator = DicomDictionary.Default.GetPrivateCreator("TESTCREATOR");
+            DicomDictionary privDict = DicomDictionary.Default[privateCreator];
+
+            var privTag = new DicomDictionaryEntry(DicomMaskedTag.Parse("0011", "xx10"), "TestPrivTagName", "TestPrivTagKeyword", DicomVM.VM_1, false, DicomVR.DT);
+
+            privDict.Add(privTag);
+
+            var dataBefore = SerializeDicom_(dataSet);
+
+            var val = dataSet.Get<string>(privTag.Tag);
+
+            var dataAfter = SerializeDicom_(dataSet);
+
+            Assert.Equal(dataBefore, dataAfter);
+            Assert.Null(val);
+        }
+
+        [Fact]
+        public void ContainsPrivateTagsChangesNothingWhenNotPresent()
+        {
+            var dataSet = new DicomDataset
+            {
+                {DicomTag.SOPInstanceUID, "2.999.1241"},
+                {DicomTag.SOPClassUID, "2.999.1242"}
+            };
+
+            DicomPrivateCreator privateCreator = DicomDictionary.Default.GetPrivateCreator("TESTCREATOR");
+            DicomDictionary privDict = DicomDictionary.Default[privateCreator];
+
+            var privTag = new DicomDictionaryEntry(DicomMaskedTag.Parse("0011", "xx10"), "TestPrivTagName", "TestPrivTagKeyword", DicomVM.VM_1, false, DicomVR.DT);
+
+            privDict.Add(privTag);
+
+            var dataBefore = SerializeDicom_(dataSet);
+
+            var val = dataSet.Contains(privTag.Tag);
+
+            var dataAfter = SerializeDicom_(dataSet);
+
+            Assert.Equal(dataBefore, dataAfter);
+            Assert.False(val);
+        }
+
+        [Fact]
+        public void ContainsPrivateTagsChangesNothingWhenPresent()
+        {
+            DicomPrivateCreator privateCreator = DicomDictionary.Default.GetPrivateCreator("TESTCREATOR");
+            DicomDictionary privDict = DicomDictionary.Default[privateCreator];
+
+            var privTag = new DicomDictionaryEntry(DicomMaskedTag.Parse("0011", "xx10"), "TestPrivTagName", "TestPrivTagKeyword", DicomVM.VM_1, false, DicomVR.DT);
+
+            privDict.Add(privTag);
+
+            var dataSet = new DicomDataset
+            {
+                {DicomTag.SOPInstanceUID, "2.999.1241"},
+                {DicomTag.SOPClassUID, "2.999.1242"},
+                {privTag.Tag, "19700101123456"}
+            };
+
+            var dataBefore = SerializeDicom_(dataSet);
+
+            var val = dataSet.Contains(privTag.Tag);
+
+            var dataAfter = SerializeDicom_(dataSet);
+
+            Assert.Equal(dataBefore, dataAfter);
+            Assert.True(val);
+        }
+
+        [Fact]
+        public void GetPrivateTagsChangesNothingWhenPresent()
+        {
+            DicomPrivateCreator privateCreator = DicomDictionary.Default.GetPrivateCreator("TESTCREATOR");
+            DicomDictionary privDict = DicomDictionary.Default[privateCreator];
+
+            var privTag = new DicomDictionaryEntry(DicomMaskedTag.Parse("0011", "xx10"), "TestPrivTagName", "TestPrivTagKeyword", DicomVM.VM_1, false, DicomVR.DT);
+
+            privDict.Add(privTag);
+
+            var dataSet = new DicomDataset
+            {
+                {DicomTag.SOPInstanceUID, "2.999.1241"},
+                {DicomTag.SOPClassUID, "2.999.1242"},
+                {privTag.Tag, "19700101123456"}
+            };
+
+            var dataBefore = SerializeDicom_(dataSet);
+
+            var val = dataSet.Get<string>(privTag.Tag);
+
+            var dataAfter = SerializeDicom_(dataSet);
+
+            Assert.Equal(dataBefore, dataAfter);
+            Assert.Equal(val, "19700101123456");
         }
     }
 }
