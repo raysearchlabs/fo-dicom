@@ -916,7 +916,7 @@ namespace Dicom.Network {
 					// reset length in case we recurse into WritePDU()
 					_length = 0;
 					// is the current PDU at its maximum size or do we have room for another PDV?
-					if ((CurrentPduSize() + 6) >= _max || (!_command && last))
+					if (_service.Options.OnePDVPerPDU || (CurrentPduSize() + 6) >= _max || (!_command && last))
 						WritePDU(last);
 
 					// Max PDU Size - Current Size - Size of PDV header
