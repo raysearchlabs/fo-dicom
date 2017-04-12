@@ -89,10 +89,8 @@ namespace Dicom.IO
 				return tag;
 			}
 
-			var dictEntry = DicomDictionary.Default.FirstOrDefault(entry => entry.Keyword == tagstr || entry.Name == tagstr);
-			if (dictEntry != null) return dictEntry.Tag;
-
-			return null;
+			var dictEntry = DicomDictionary.Default.LookupKeyword(tagstr);
+			return dictEntry?.Tag;
 		}
 
 		private static DicomItem CreateDicomItem(DicomTag tag, string vr, object data)

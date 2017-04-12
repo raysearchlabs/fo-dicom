@@ -162,7 +162,32 @@ namespace Dicom {
 				reader.Process();
 			}
 		}
-		#endregion
+
+    /// <summary>
+    /// Lookup a keyword.
+    /// </summary>
+    /// <param name="keyword">The attribute keyword that we look for.</param>
+    /// <returns>A matching DicomDictionaryEntry or null.</returns>
+    public DicomDictionaryEntry LookupKeyword(string keyword)
+    {
+        foreach (var e in _entries.Values)
+            if (e.Keyword == keyword)
+                return e;
+
+        foreach (var e in _masked)
+            if (e.Keyword == keyword)
+                return e;
+
+        foreach (var privDict in _private.Values)
+        {
+            var r = privDict.LookupKeyword(keyword);
+            if (r != null)
+                return r;
+        }
+
+        return null;
+    }
+#endregion
 
 		#region IEnumerable Members
 
