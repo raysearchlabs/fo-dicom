@@ -58,6 +58,8 @@ namespace Dicom
             Assert.Equal(expected, actual);
         }
 
+<<<<<<< HEAD:Tests/DicomDictionaryTest.cs
+=======
         private double TimeCall(int numCalls, Action call)
         {
             var start = Process.GetCurrentProcess().TotalProcessorTime;
@@ -87,6 +89,8 @@ namespace Dicom
 
 
 #if !NETSTANDARD
+
+>>>>>>> 6ce67a87... Speed up DicomDictionary.GetEnumerator(). Connected to #532 (#534):Tests/Desktop/DicomDictionaryTest.cs
         [Fact]
         public void Throws_If_Already_Loaded()
         {
@@ -259,7 +263,6 @@ namespace Dicom
             Assert.True(dict.Contains(privCreatorDictEntry));
             Assert.True(dict[dictEntry2.Tag.PrivateCreator].Contains(dictEntry2));
         }
-#endif
 
         #endregion
 
@@ -282,9 +285,6 @@ namespace Dicom
 
         #endregion
 
-#if NETSTANDARD
-        public void Dispose() { }
-#else
         #region appDomain Stuff
 
         private static int index = 0;
@@ -310,6 +310,5 @@ namespace Dicom
 
         }
         #endregion
-#endif
     }
 }
