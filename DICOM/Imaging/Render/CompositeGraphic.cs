@@ -1,216 +1,195 @@
-using System;
-using System.Collections.Generic;
-using Dicom.Imaging.LUT;
+// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-#if NETFX_CORE
-using Windows.Foundation;
-using Windows.UI.Xaml.Media.Imaging;
-#elif SILVERLIGHT
-using System.Windows;
-using System.Windows.Media.Imaging;
-#elif TOUCH
-using BitmapSource = MonoTouch.CoreGraphics.CGImage;
-#else
-using System.Drawing;
-using System.Windows;
-using System.Windows.Media.Imaging;
-#endif
+namespace Dicom.Imaging.Render
+{
+    using System.Collections.Generic;
+    using System.Linq;
 
-namespace Dicom.Imaging.Render {
-	/// <summary>
-	/// The Composite Graphic implementation of <seealso cref="IGraphic"/> which layers graphics one over the other
-	/// </summary>
-	public class CompositeGraphic : IGraphic {
-		#region Private Members
-		private List<IGraphic> _layers = new List<IGraphic>();
-		#endregion
+    using Dicom.Imaging.LUT;
 
-		#region Public Constructor
-		/// <summary>
-		/// Initialize new instance of <seealso cref="CompositeGraphic"/>
-		/// </summary>
-		/// <param name="bg">background (initial) graphic layer</param>
-		public CompositeGraphic(IGraphic bg) {
-			_layers.Add(bg);
-		}
-		#endregion
+    /// <summary>
+    /// The Composite Graphic implementation of <seealso cref="IGraphic"/> which layers graphics one over the other
+    /// </summary>
+    public class CompositeGraphic : IGraphic
+    {
+        #region Private Members
 
-		#region Public Properties
-		/// <summary>
-		/// The backgroun graphic layer
-		/// </summary>
-		public IGraphic BackgroundLayer {
-			get { return _layers[0]; }
-		}
+        private readonly List<IGraphic> _layers = new List<IGraphic>();
 
-		public int OriginalWidth {
-			get { return BackgroundLayer.OriginalWidth; }
-		}
+        #endregion
 
-		public int OriginalHeight {
-			get { return BackgroundLayer.OriginalHeight; }
-		}
+        #region Public Constructor
 
-		public int OriginalOffsetX {
-			get { return 0; }
-		}
+        /// <summary>
+        /// Initialize new instance of <seealso cref="CompositeGraphic"/>
+        /// </summary>
+        /// <param name="bg">background (initial) graphic layer</param>
+        public CompositeGraphic(IGraphic bg)
+        {
+            _layers.Add(bg);
+        }
 
-		public int OriginalOffsetY {
-			get { return 0; }
-		}
+        #endregion
 
-		public double ScaleFactor {
-			get { return BackgroundLayer.ScaleFactor; }
-		}
+        #region Public Properties
 
-		public int ScaledWidth {
-			get { return BackgroundLayer.ScaledWidth; }
-		}
+        /// <summary>
+        /// The backgroun graphic layer
+        /// </summary>
+        public IGraphic BackgroundLayer
+        {
+            get
+            {
+                return _layers[0];
+            }
+        }
 
-		public int ScaledHeight {
-			get { return BackgroundLayer.ScaledHeight; }
-		}
+        public int OriginalWidth
+        {
+            get
+            {
+                return BackgroundLayer.OriginalWidth;
+            }
+        }
 
-		public int ScaledOffsetX {
-			get { return 0; }
-		}
+        public int OriginalHeight
+        {
+            get
+            {
+                return BackgroundLayer.OriginalHeight;
+            }
+        }
 
-		public int ScaledOffsetY {
-			get { return 0; }
-		}
+        public int OriginalOffsetX
+        {
+            get
+            {
+                return 0;
+            }
+        }
 
-		public int ZOrder {
-			get { return 0; }
-		}
-		#endregion
+        public int OriginalOffsetY
+        {
+            get
+            {
+                return 0;
+            }
+        }
 
-		#region Public Members
-		/// <summary>
-		/// Add new graphic layer to the existing layers according to its Z Order
-		/// </summary>
-		/// <param name="layer">The layer graphic instance</param>
-		public void AddLayer(IGraphic layer) {
-			_layers.Add(layer);
-			_layers.Sort(delegate(IGraphic a, IGraphic b) {
-				if (b.ZOrder > a.ZOrder)
-					return 1;
-				else if (a.ZOrder > b.ZOrder)
-					return -1;
-				else
-					return 0;
-			});
-		}
+        public double ScaleFactor
+        {
+            get
+            {
+                return BackgroundLayer.ScaleFactor;
+            }
+        }
 
-		public void Reset() {
-			foreach (IGraphic graphic in _layers)
-				graphic.Reset();
-		}
+        public int ScaledWidth
+        {
+            get
+            {
+                return BackgroundLayer.ScaledWidth;
+            }
+        }
 
-		public void Scale(double scale) {
-			foreach (IGraphic graphic in _layers)
-				graphic.Scale(scale);
-		}
+        public int ScaledHeight
+        {
+            get
+            {
+                return BackgroundLayer.ScaledHeight;
+            }
+        }
 
-		public void BestFit(int width, int height) {
-			foreach (IGraphic graphic in _layers)
-				graphic.BestFit(width, height);
-		}
+        public int ScaledOffsetX
+        {
+            get
+            {
+                return 0;
+            }
+        }
 
-		public void Rotate(int angle) {
-			foreach (IGraphic graphic in _layers)
-				graphic.Rotate(angle);
-		}
+        public int ScaledOffsetY
+        {
+            get
+            {
+                return 0;
+            }
+        }
 
-		public void FlipX() {
-			foreach (IGraphic graphic in _layers)
-				graphic.FlipX();
-		}
+        public int ZOrder
+        {
+            get
+            {
+                return 0;
+            }
+        }
 
-		public void FlipY() {
-			foreach (IGraphic graphic in _layers)
-				graphic.FlipY();
-		}
+        #endregion
 
-		public void Transform(double scale, int rotation, bool flipx, bool flipy) {
-			foreach (IGraphic graphic in _layers)
-				graphic.Transform(scale, rotation, flipx, flipy);
-		}
+        #region Public Members
 
-#if NETFX_CORE || SILVERLIGHT
-		public BitmapSource RenderImageSource(ILUT lut)
-		{
-			WriteableBitmap img = BackgroundLayer.RenderImageSource(lut) as WriteableBitmap;
-			if (img != null && _layers.Count > 1)
-			{
-				for (int i = 1; i < _layers.Count; ++i)
-				{
-					var g = _layers[i];
-					var layer = _layers[i].RenderImageSource(null) as WriteableBitmap;
+        /// <summary>
+        /// Add new graphic layer to the existing layers according to its Z Order
+        /// </summary>
+        /// <param name="layer">The layer graphic instance</param>
+        public void AddLayer(IGraphic layer)
+        {
+            _layers.Add(layer);
+            _layers.Sort(
+                delegate(IGraphic a, IGraphic b)
+                    {
+                        if (b.ZOrder > a.ZOrder) return 1;
+                        else if (a.ZOrder > b.ZOrder) return -1;
+                        else return 0;
+                    });
+        }
 
-					if (layer != null)
-					{
-						var rect = new Rect(g.ScaledOffsetX, g.ScaledOffsetY, g.ScaledWidth, g.ScaledHeight);
-						img.Blit(rect, layer, rect);
-					}
-				}
-			}
-			return img;
-		}
-#elif TOUCH
-		public BitmapSource RenderImageSource(ILUT lut)
-		{
-			var img = new MonoTouch.CoreGraphics.CGBitmapContext(IntPtr.Zero, OriginalWidth, OriginalHeight, 8, 4 * OriginalWidth,
-			                                                     MonoTouch.CoreGraphics.CGColorSpace.CreateDeviceRGB(),
-			                                                     MonoTouch.CoreGraphics.CGImageAlphaInfo.PremultipliedFirst);
-			for (var i = 0; i < _layers.Count; ++i)
-			{
-				var g = _layers[i];
-				var layer = _layers[i].RenderImageSource(i == 0 ? lut : null);
+        public void Reset()
+        {
+            foreach (IGraphic graphic in _layers) graphic.Reset();
+        }
 
-				if (layer != null)
-				{
-					var rect = new System.Drawing.RectangleF(g.ScaledOffsetX, g.ScaledOffsetY, g.ScaledWidth, g.ScaledHeight);
-					img.DrawImage(rect, layer);
-				}
-			}
-			return img.ToImage();
-		}
-#else
-		public BitmapSource RenderImageSource(ILUT lut)
-		{
-			WriteableBitmap img = BackgroundLayer.RenderImageSource(lut) as WriteableBitmap;
-			if (img != null && _layers.Count > 1)
-			{
-				for (int i = 1; i < _layers.Count; ++i)
-				{
-					var g = _layers[i];
-					var layer = _layers[i].RenderImageSource(null) as WriteableBitmap;
+        public void Scale(double scale)
+        {
+            foreach (IGraphic graphic in _layers) graphic.Scale(scale);
+        }
 
-					if (layer != null)
-					{
-						Array pixels = new int[g.ScaledWidth * g.ScaledHeight];
-						layer.CopyPixels(pixels, 4, 0);
-						img.WritePixels(new Int32Rect(g.ScaledOffsetX, g.ScaledOffsetY, g.ScaledWidth, g.ScaledHeight),
-										pixels, 4, 0);
-					}
-				}
-			}
-			return img;
-		}
+        public void BestFit(int width, int height)
+        {
+            foreach (IGraphic graphic in _layers) graphic.BestFit(width, height);
+        }
 
-		public Image RenderImage(ILUT lut) {
-			Image img = BackgroundLayer.RenderImage(lut);
-			if (_layers.Count > 1) {
-				using (Graphics graphics = Graphics.FromImage(img)) {
-					for (int i = 1; i < _layers.Count; i++) {
-						Image layer = _layers[i].RenderImage(null);
-						graphics.DrawImage(layer, _layers[i].ScaledOffsetX, _layers[i].ScaledOffsetY);
-					}
-				}
-			}
-			return img;
-		}
-#endif
-		#endregion
-	}
+        public void Rotate(int angle)
+        {
+            foreach (IGraphic graphic in _layers) graphic.Rotate(angle);
+        }
+
+        public void FlipX()
+        {
+            foreach (IGraphic graphic in _layers) graphic.FlipX();
+        }
+
+        public void FlipY()
+        {
+            foreach (IGraphic graphic in _layers) graphic.FlipY();
+        }
+
+        public void Transform(double scale, int rotation, bool flipx, bool flipy)
+        {
+            foreach (IGraphic graphic in _layers) graphic.Transform(scale, rotation, flipx, flipy);
+        }
+
+        public IImage RenderImage(ILUT lut)
+        {
+            var img = BackgroundLayer.RenderImage(lut);
+            if (_layers.Count > 1)
+            {
+                img.DrawGraphics(_layers.Skip(1));
+            }
+            return img;
+        }
+
+        #endregion
+    }
 }

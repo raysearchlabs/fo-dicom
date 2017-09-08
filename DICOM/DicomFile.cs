@@ -1,129 +1,171 @@
-﻿using System;
-using System.IO;
-using Dicom.IO;
+﻿// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-using Dicom.IO.Reader;
-using Dicom.IO.Writer;
+namespace Dicom
+{
+    using System;
+    using System.IO;
+    using System.Text;
 
-namespace Dicom {
-	public class DicomFile {
-		public DicomFile() {
-			FileMetaInfo = new DicomFileMetaInformation();
-			Dataset = new DicomDataset();
-			Format = DicomFileFormat.DICOM3;
-		}
+#if !NET35
+    using System.Threading.Tasks;
+#endif
 
-		public DicomFile(DicomDataset dataset) {
-			Dataset = dataset;
-			FileMetaInfo = new DicomFileMetaInformation(Dataset);
-			Format = DicomFileFormat.DICOM3;
-		}
+    using Dicom.IO;
+    using Dicom.IO.Reader;
+    using Dicom.IO.Writer;
 
-		public FileReference File {
-			get;
-			protected set;
-		}
+    /// <summary>
+    /// Container class for DICOM file parsing states.
+    /// </summary>
+    public sealed class ParseState
+    {
+        #region PROPERTIES
 
-		public DicomFileFormat Format {
-			get;
-			protected set;
-		}
+        /// <summary>
+        /// Gets or sets the DICOM tag associated with the parse state.
+        /// </summary>
+        public DicomTag Tag { get; set; }
 
-		public DicomFileMetaInformation FileMetaInfo {
-			get;
-			protected set;
-		}
+        /// <summary>
+        /// Gets or sets the sequence depth (zero-based) associated with the parse state.
+        /// </summary>
+        public int SequenceDepth { get; set; }
 
-		public DicomDataset Dataset {
-			get;
-			protected set;
-		}
+        #endregion
+    }
 
-		protected virtual void OnSave() {
-		}
+    /// <summary>
+    /// Representation of one DICOM file.
+    /// </summary>
+    public class DicomFile
+    {
+        #region CONSTRUCTORS
 
-		public void Save(string fileName) {
-			if (Format == DicomFileFormat.ACRNEMA1 || Format == DicomFileFormat.ACRNEMA2)
-				throw new DicomFileException(this, "Unable to save ACR-NEMA file");
+        public DicomFile()
+        {
+            FileMetaInfo = new DicomFileMetaInformation();
+            Dataset = new DicomDataset();
+            Format = DicomFileFormat.DICOM3;
+            IsPartial = false;
+        }
 
-			if (Format == DicomFileFormat.DICOM3NoFileMetaInfo) {
-				// create file meta information from dataset
-				FileMetaInfo = new DicomFileMetaInformation(Dataset);
-			}
+        public DicomFile(DicomDataset dataset)
+        {
+            Dataset = dataset;
+            FileMetaInfo = new DicomFileMetaInformation(Dataset);
+            Format = DicomFileFormat.DICOM3;
+            IsPartial = false;
+        }
 
-			File = new FileReference(fileName);
-			File.Delete();
+        #endregion
 
-			OnSave();
+        #region PROPERTIES
 
-			using (var target = new FileByteTarget(File)) {
-				DicomFileWriter writer = new DicomFileWriter(DicomWriteOptions.Default);
-				writer.Write(target, FileMetaInfo, Dataset);
-			}
-		}
+        /// <summary>
+        /// Gets the file reference of the DICOM file.
+        /// </summary>
+        public IFileReference File { get; protected set; }
 
-		public void Save(Stream stream) {
-			if (Format == DicomFileFormat.ACRNEMA1 || Format == DicomFileFormat.ACRNEMA2)
-				throw new DicomFileException(this, "Unable to save ACR-NEMA file");
+        /// <summary>
+        /// Gets the DICOM file format.
+        /// </summary>
+        public DicomFileFormat Format { get; protected set; }
 
-			if (Format == DicomFileFormat.DICOM3NoFileMetaInfo) {
-				// create file meta information from dataset
-				FileMetaInfo = new DicomFileMetaInformation(Dataset);
-			}
+        /// <summary>
+        /// Gets the DICOM file meta information of the file.
+        /// </summary>
+        public DicomFileMetaInformation FileMetaInfo { get; protected set; }
 
-			OnSave();
+        /// <summary>
+        /// Gets the DICOM dataset of the file.
+        /// </summary>
+        public DicomDataset Dataset { get; protected set; }
 
-			using (var target = new StreamByteTarget(stream)) {
-				DicomFileWriter writer = new DicomFileWriter(DicomWriteOptions.Default);
-				writer.Write(target, FileMetaInfo, Dataset);
-			}
-		}
+        /// <summary>
+        /// Gets whether the parsing of the file ended prematurely.
+        /// </summary>
+        public bool IsPartial { get; protected set; }
 
-		public void BeginSave(string fileName, AsyncCallback callback, object state) {
-			if (Format == DicomFileFormat.ACRNEMA1 || Format == DicomFileFormat.ACRNEMA2)
-				throw new DicomFileException(this, "Unable to save ACR-NEMA file");
+        #endregion
 
-			if (Format == DicomFileFormat.DICOM3NoFileMetaInfo) {
-				// create file meta information from dataset
-				FileMetaInfo = new DicomFileMetaInformation(Dataset);
-			}
+        #region METHODS
 
-			File = new FileReference(fileName);
-			File.Delete();
+        /// <summary>
+        /// Save DICOM file.
+        /// </summary>
+        /// <param name="fileName">File name.</param>
+        /// <param name="options">Options to apply during writing.</param>
+        public void Save(string fileName, DicomWriteOptions options = null)
+        {
+            this.PreprocessFileMetaInformation();
 
-			OnSave();
+            this.File = IOManager.CreateFileReference(fileName);
+            this.File.Delete();
 
-			FileByteTarget target = new FileByteTarget(File);
+            this.OnSave();
 
-			EventAsyncResult result = new EventAsyncResult(callback, state);
+            using (var target = new FileByteTarget(this.File))
+            {
+                var writer = new DicomFileWriter(options);
+                writer.Write(target, this.FileMetaInfo, this.Dataset);
+            }
+        }
 
-			DicomFileWriter writer = new DicomFileWriter(DicomWriteOptions.Default);
-			writer.BeginWrite(target, FileMetaInfo, Dataset, OnWriteComplete, new Tuple<DicomFileWriter, EventAsyncResult>(writer, result));
-		}
-		private static void OnWriteComplete(IAsyncResult result) {
-			var state = result.AsyncState as Tuple<DicomFileWriter, EventAsyncResult>;
+        /// <summary>
+        /// Save DICOM file to stream.
+        /// </summary>
+        /// <param name="stream">Stream on which to save DICOM file.</param>
+        /// <param name="options">Options to apply during writing.</param>
+        public void Save(Stream stream, DicomWriteOptions options = null)
+        {
+            this.PreprocessFileMetaInformation();
+            this.OnSave();
 
-			try {
-				state.Item1.EndWrite(result);
+            var target = new StreamByteTarget(stream);
+            var writer = new DicomFileWriter(options);
+            writer.Write(target, this.FileMetaInfo, this.Dataset);
+        }
 
-				// ensure that file handles are closed
-				var target = (FileByteTarget)state.Item1.Target;
-				target.Dispose();
-			} catch (Exception ex) {
-				state.Item2.InternalState = ex;
-			}
+#if !NET35
+        /// <summary>
+        /// Save to file asynchronously.
+        /// </summary>
+        /// <param name="fileName">Name of file.</param>
+        /// <param name="options">Options to apply during writing.</param>
+        /// <returns>Awaitable <see cref="Task"/>.</returns>
+        public async Task SaveAsync(string fileName, DicomWriteOptions options = null)
+        {
+            this.PreprocessFileMetaInformation();
 
-			state.Item2.Set();
-		}
+            this.File = IOManager.CreateFileReference(fileName);
+            this.File.Delete();
 
-		public void EndSave(IAsyncResult result) {
-			EventAsyncResult eventResult = result as EventAsyncResult;
+            this.OnSave();
 
-			result.AsyncWaitHandle.WaitOne();
+            using (var target = new FileByteTarget(this.File))
+            {
+                var writer = new DicomFileWriter(options);
+                await writer.WriteAsync(target, this.FileMetaInfo, this.Dataset).ConfigureAwait(false);
+            }
+        }
 
-			if (eventResult.InternalState != null)
-				throw eventResult.InternalState as Exception;
-		}
+        /// <summary>
+        /// Asynchronously save DICOM file to stream.
+        /// </summary>
+        /// <param name="stream">Stream on which to save DICOM file.</param>
+        /// <param name="options">Options to apply during writing.</param>
+        /// <returns>Awaitable task.</returns>
+        public async Task SaveAsync(Stream stream, DicomWriteOptions options = null)
+        {
+            this.PreprocessFileMetaInformation();
+            this.OnSave();
+
+            var target = new StreamByteTarget(stream);
+            var writer = new DicomFileWriter(options);
+            await writer.WriteAsync(target, this.FileMetaInfo, this.Dataset).ConfigureAwait(false);
+        }
+#endif
 
         /// <summary>
         /// Reads the specified filename and returns a DicomFile object.  Note that the values for large
@@ -132,130 +174,357 @@ namespace Dicom {
         /// </summary>
         /// <param name="fileName">The filename of the DICOM file</param>
         /// <returns>DicomFile instance</returns>
-		public static DicomFile Open(string fileName) {
-			DicomFile df = new DicomFile();
-
-			try {
-				df.File = new FileReference(fileName);
-
-				using (var source = new FileByteSource(df.File)) {
-					DicomFileReader reader = new DicomFileReader();
-					reader.Read(source,
-						new DicomDatasetReaderObserver(df.FileMetaInfo),
-						new DicomDatasetReaderObserver(df.Dataset));
-
-					df.Format = reader.FileFormat;
-
-					df.Dataset.InternalTransferSyntax = reader.Syntax;
-
-					return df;
-				}
-			} catch (Exception e) {
-				throw new DicomFileException(df, e.Message, e);
-			}
-		}
-
-        public static DicomFile Open(Stream stream)
+        public static DicomFile Open(string fileName)
         {
-            var df = new DicomFile();
-
-			try {
-				var source = new StreamByteSource(stream);
-
-				var reader = new DicomFileReader();
-				reader.Read(source,
-					new DicomDatasetReaderObserver(df.FileMetaInfo),
-					new DicomDatasetReaderObserver(df.Dataset));
-
-				df.Format = reader.FileFormat;
-
-				df.Dataset.InternalTransferSyntax = reader.Syntax;
-
-				return df;
-			} catch (Exception e) {
-				throw new DicomFileException(df, e.Message, e);
-			}
+            return Open(fileName, DicomEncoding.Default);
         }
 
-        public static IAsyncResult BeginOpen(string fileName, AsyncCallback callback, object state)
+        /// <summary>
+        /// Reads the specified filename and returns a DicomFile object.  Note that the values for large
+        /// DICOM elements (e.g. PixelData) are read in "on demand" to conserve memory.  Large DICOM elements
+        /// are determined by their size in bytes - see the default value for this in the FileByteSource._largeObjectSize
+        /// </summary>
+        /// <param name="fileName">The filename of the DICOM file</param>
+        /// <param name="fallbackEncoding">Encoding to apply when attribute Specific Character Set is not available.</param>
+        /// <param name="stop">Stop criterion in dataset.</param>
+        /// <returns>DicomFile instance</returns>
+        public static DicomFile Open(string fileName, Encoding fallbackEncoding, Func<ParseState, bool> stop = null)
         {
-			DicomFile df = new DicomFile();
-			df.File = new FileReference(fileName);
+            if (fallbackEncoding == null)
+            {
+                throw new ArgumentNullException("fallbackEncoding");
+            }
+            DicomFile df = new DicomFile();
 
-			FileByteSource source = new FileByteSource(df.File);
+            try
+            {
+                df.File = IOManager.CreateFileReference(fileName);
 
-			EventAsyncResult result = new EventAsyncResult(callback, state);
+                using (var source = new FileByteSource(df.File))
+                {
+                    var reader = new DicomFileReader();
+                    var result = reader.Read(
+                        source,
+                        new DicomDatasetReaderObserver(df.FileMetaInfo),
+                        new DicomDatasetReaderObserver(df.Dataset, fallbackEncoding),
+                        stop);
 
-			DicomFileReader reader = new DicomFileReader();
-			reader.BeginRead(source,
-				new DicomDatasetReaderObserver(df.FileMetaInfo),
-				new DicomDatasetReaderObserver(df.Dataset),
-				OnReadComplete, new Tuple<DicomFileReader, DicomFile, EventAsyncResult>(reader, df, result));
+                    if (result == DicomReaderResult.Processing)
+                    {
+                        throw new DicomFileException(df, "Invalid read return state: {state}", result);
+                    }
+                    if (result == DicomReaderResult.Error)
+                    {
+                        return null;
+                    }
+                    df.IsPartial = result == DicomReaderResult.Stopped || result == DicomReaderResult.Suspended;
 
-			return result;
-		}
-		private static void OnReadComplete(IAsyncResult result) {
-			var state = result.AsyncState as Tuple<DicomFileReader, DicomFile, EventAsyncResult>;
+                    df.Format = reader.FileFormat;
 
-			Exception e = null;
-			try {
-				state.Item1.EndRead(result);
+                    df.Dataset.InternalTransferSyntax = reader.Syntax;
 
-				// ensure that file handles are closed
-				var source = (FileByteSource)state.Item1.Source;
-				source.Dispose();
+                    return df;
+                }
+            }
+            catch (Exception e)
+            {
+                throw new DicomFileException(df, e.Message, e);
+            }
+        }
 
-				state.Item2.Format = state.Item1.FileFormat;
-				state.Item2.Dataset.InternalTransferSyntax = state.Item1.Syntax;
-			} catch (Exception ex) {
-				state.Item2.Format = state.Item1.FileFormat;
-				e = ex;
-			}
+        /// <summary>
+        /// Read a DICOM file from stream.
+        /// </summary>
+        /// <param name="stream">Stream to read.</param>
+        /// <returns>Read <see cref="DicomFile"/>.</returns>
+        public static DicomFile Open(Stream stream)
+        {
+            return Open(stream, DicomEncoding.Default);
+        }
 
-			state.Item3.InternalState = new Tuple<DicomFile, Exception>(state.Item2, e);
-			state.Item3.Set();
-		}
+        /// <summary>
+        /// Read a DICOM file from stream.
+        /// </summary>
+        /// <param name="stream">Stream to read.</param>
+        /// <param name="fallbackEncoding">Encoding to use if encoding cannot be obtained from DICOM file.</param>
+        /// <param name="stop">Stop criterion in dataset.</param>
+        /// <returns>Read <see cref="DicomFile"/>.</returns>
+        public static DicomFile Open(Stream stream, Encoding fallbackEncoding, Func<ParseState, bool> stop = null)
+        {
+            if (fallbackEncoding == null)
+            {
+                throw new ArgumentNullException("fallbackEncoding");
+            }
+            var df = new DicomFile();
 
-		public static DicomFile EndOpen(IAsyncResult result) {
-			result.AsyncWaitHandle.WaitOne();
+            try
+            {
+                var source = new StreamByteSource(stream);
 
-			EventAsyncResult eventResult = result as EventAsyncResult;
-			var state = eventResult.InternalState as Tuple<DicomFile, Exception>;
+                var reader = new DicomFileReader();
+                var result = reader.Read(
+                    source,
+                    new DicomDatasetReaderObserver(df.FileMetaInfo),
+                    new DicomDatasetReaderObserver(df.Dataset, fallbackEncoding),
+                    stop);
 
-			if (state.Item2 != null)
-				throw new DicomFileException(state.Item1, state.Item2.Message, state.Item2);
+                if (result == DicomReaderResult.Processing)
+                {
+                    throw new DicomFileException(df, "Invalid read return state: {state}", result);
+                }
+                if (result == DicomReaderResult.Error)
+                {
+                    return null;
+                }
+                df.IsPartial = result == DicomReaderResult.Stopped || result == DicomReaderResult.Suspended;
 
-			return state.Item1;
-		}
+                df.Format = reader.FileFormat;
 
-		public override string ToString() {
-			return String.Format("DICOM File [{0}]", Format);
-		}
+                df.Dataset.InternalTransferSyntax = reader.Syntax;
 
-		/// <summary>
-		/// Test if file has a valid preamble and DICOM 3.0 header.
-		/// </summary>
-		/// <param name="path">Path to file</param>
-		/// <returns>True if valid DICOM 3.0 file header is detected.</returns>
-		public static bool HasValidHeader(string path) {
-			try {
-				using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read)) {
-					fs.Seek(128, SeekOrigin.Begin);
+                return df;
+            }
+            catch (Exception e)
+            {
+                throw new DicomFileException(df, e.Message, e);
+            }
+        }
 
-					bool magic = false;
-					if (fs.ReadByte() == 'D' &&
-						fs.ReadByte() == 'I' &&
-						fs.ReadByte() == 'C' &&
-						fs.ReadByte() == 'M')
-						magic = true;
+#if !NET35
+        /// <summary>
+        /// Asynchronously reads the specified filename and returns a DicomFile object.  Note that the values for large
+        /// DICOM elements (e.g. PixelData) are read in "on demand" to conserve memory.  Large DICOM elements
+        /// are determined by their size in bytes - see the default value for this in the FileByteSource._largeObjectSize
+        /// </summary>
+        /// <param name="fileName">The filename of the DICOM file</param>
+        /// <returns>Awaitable <see cref="DicomFile"/> instance.</returns>
+        public static Task<DicomFile> OpenAsync(string fileName)
+        {
+            return OpenAsync(fileName, DicomEncoding.Default);
+        }
 
-					fs.Close();
+        /// <summary>
+        /// Asynchronously reads the specified filename and returns a DicomFile object.  Note that the values for large
+        /// DICOM elements (e.g. PixelData) are read in "on demand" to conserve memory.  Large DICOM elements
+        /// are determined by their size in bytes - see the default value for this in the FileByteSource._largeObjectSize
+        /// </summary>
+        /// <param name="fileName">The filename of the DICOM file</param>
+        /// <param name="fallbackEncoding">Encoding to apply when attribute Specific Character Set is not available.</param>
+        /// <param name="stop">Stop criterion in dataset.</param>
+        /// <returns>Awaitable <see cref="DicomFile"/> instance.</returns>
+        public static async Task<DicomFile> OpenAsync(string fileName, Encoding fallbackEncoding, Func<ParseState, bool> stop = null)
+        {
+            if (fallbackEncoding == null)
+            {
+                throw new ArgumentNullException("fallbackEncoding");
+            }
+            var df = new DicomFile();
 
-					return magic;
-				}
-			} catch {
-				return false;
-			}
-		}
-	}
+            try
+            {
+                df.File = IOManager.CreateFileReference(fileName);
+
+                using (var source = new FileByteSource(df.File))
+                {
+                    var reader = new DicomFileReader();
+                    var result =
+                        await
+                        reader.ReadAsync(
+                            source,
+                            new DicomDatasetReaderObserver(df.FileMetaInfo),
+                            new DicomDatasetReaderObserver(df.Dataset, fallbackEncoding),
+                            stop).ConfigureAwait(false);
+
+                    if (result == DicomReaderResult.Processing)
+                    {
+                        throw new DicomFileException(df, "Invalid read return state: {state}", result);
+                    }
+                    if (result == DicomReaderResult.Error)
+                    {
+                        return null;
+                    }
+                    df.IsPartial = result == DicomReaderResult.Stopped || result == DicomReaderResult.Suspended;
+
+                    df.Format = reader.FileFormat;
+                    df.Dataset.InternalTransferSyntax = reader.Syntax;
+
+                    return df;
+                }
+            }
+            catch (Exception e)
+            {
+                throw new DicomFileException(df, e.Message, e);
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously read a DICOM file from stream.
+        /// </summary>
+        /// <param name="stream">Stream to read.</param>
+        /// <returns>Awaitable <see cref="DicomFile"/> instance.</returns>
+        public static Task<DicomFile> OpenAsync(Stream stream)
+        {
+            return OpenAsync(stream, DicomEncoding.Default);
+        }
+
+        /// <summary>
+        /// Asynchronously read a DICOM file from stream.
+        /// </summary>
+        /// <param name="stream">Stream to read.</param>
+        /// <param name="fallbackEncoding">Encoding to use if encoding cannot be obtained from DICOM file.</param>
+        /// <param name="stop">Stop criterion in dataset.</param>
+        /// <returns>Awaitable <see cref="DicomFile"/> instance.</returns>
+        public static async Task<DicomFile> OpenAsync(Stream stream, Encoding fallbackEncoding, Func<ParseState, bool> stop = null)
+        {
+            if (fallbackEncoding == null)
+            {
+                throw new ArgumentNullException("fallbackEncoding");
+            }
+            var df = new DicomFile();
+
+            try
+            {
+                var source = new StreamByteSource(stream);
+
+                var reader = new DicomFileReader();
+                var result =
+                    await
+                    reader.ReadAsync(
+                        source,
+                        new DicomDatasetReaderObserver(df.FileMetaInfo),
+                        new DicomDatasetReaderObserver(df.Dataset, fallbackEncoding),
+                        stop).ConfigureAwait(false);
+
+                if (result == DicomReaderResult.Processing)
+                {
+                    throw new DicomFileException(df, "Invalid read return state: {state}", result);
+                }
+                if (result == DicomReaderResult.Error)
+                {
+                    return null;
+                }
+                df.IsPartial = result == DicomReaderResult.Stopped || result == DicomReaderResult.Suspended;
+
+                df.Format = reader.FileFormat;
+                df.Dataset.InternalTransferSyntax = reader.Syntax;
+
+                return df;
+            }
+            catch (Exception e)
+            {
+                throw new DicomFileException(df, e.Message, e);
+            }
+        }
+#endif
+
+        /// <summary>
+        /// Test if file has a valid preamble and DICOM 3.0 header.
+        /// </summary>
+        /// <param name="path">Path to file</param>
+        /// <returns>True if valid DICOM 3.0 file header is detected.</returns>
+        public static bool HasValidHeader(string path)
+        {
+            try
+            {
+                var file = IOManager.CreateFileReference(path);
+                using (var fs = file.OpenRead())
+                {
+                    fs.Seek(128, SeekOrigin.Begin);
+                    return fs.ReadByte() == 'D' && fs.ReadByte() == 'I' && fs.ReadByte() == 'C' && fs.ReadByte() == 'M';
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Returns a string that represents the current object.
+        /// </summary>
+        /// <returns>
+        /// A string that represents the current object.
+        /// </returns>
+        public override string ToString()
+        {
+            return string.Format("DICOM File [{0}]", this.Format);
+        }
+
+        /// <summary>
+        /// Reads the specified file and returns a DicomFile object.  Note that the values for large
+        /// DICOM elements (e.g. PixelData) are read in "on demand" to conserve memory.  Large DICOM elements
+        /// are determined by their size in bytes - see the default value for this in the FileByteSource._largeObjectSize
+        /// </summary>
+        /// <param name="file">The file reference of the DICOM file</param>
+        /// <param name="fallbackEncoding">Encoding to apply when attribute Specific Character Set is not available.</param>
+        /// <returns>DicomFile instance</returns>
+        internal static DicomFile Open(IFileReference file, Encoding fallbackEncoding)
+        {
+            if (fallbackEncoding == null)
+            {
+                throw new ArgumentNullException("fallbackEncoding");
+            }
+            DicomFile df = new DicomFile();
+
+            try
+            {
+                df.File = file;
+
+                using (var source = new FileByteSource(file))
+                {
+                    DicomFileReader reader = new DicomFileReader();
+                    var result = reader.Read(
+                        source,
+                        new DicomDatasetReaderObserver(df.FileMetaInfo),
+                        new DicomDatasetReaderObserver(df.Dataset, fallbackEncoding));
+
+                    if (result == DicomReaderResult.Processing)
+                    {
+                        throw new DicomFileException(df, "Invalid read return state: {state}", result);
+                    }
+                    if (result == DicomReaderResult.Error)
+                    {
+                        return null;
+                    }
+                    df.IsPartial = result == DicomReaderResult.Stopped || result == DicomReaderResult.Suspended;
+
+                    df.Format = reader.FileFormat;
+
+                    df.Dataset.InternalTransferSyntax = reader.Syntax;
+
+                    return df;
+                }
+            }
+            catch (Exception e)
+            {
+                throw new DicomFileException(df, e.Message, e);
+            }
+        }
+
+        /// <summary>
+        /// Method to call before performing the actual saving.
+        /// </summary>
+        protected virtual void OnSave()
+        {
+        }
+
+        /// <summary>
+        /// Preprocess file meta information before save.
+        /// </summary>
+        /// <exception cref="DicomFileException">If file format is ACR-NEMA version 2 or 3.</exception>
+        private void PreprocessFileMetaInformation()
+        {
+            if (this.Format == DicomFileFormat.ACRNEMA1 || this.Format == DicomFileFormat.ACRNEMA2)
+            {
+                throw new DicomFileException(this, "Unable to save ACR-NEMA file");
+            }
+
+            // create file meta information from dataset or update existing file meta information.
+            this.FileMetaInfo = this.Format == DicomFileFormat.DICOM3NoFileMetaInfo
+                                    ? new DicomFileMetaInformation(this.Dataset)
+                                    : new DicomFileMetaInformation(this.FileMetaInfo);
+        }
+
+        #endregion
+    }
 }

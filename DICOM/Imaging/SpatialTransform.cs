@@ -1,104 +1,108 @@
-﻿#if !NETFX_CORE && !WINDOWS_PHONE
-using System.Drawing;
-#endif
+﻿// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Imaging {
-	public class SpatialTransform {
+namespace Dicom.Imaging
+{
+    using Dicom.Imaging.Mathematics;
 
-#if NETFX_CORE || WINDOWS_PHONE
-        #region INNER TYPES
+    /// <summary>
+    /// Representation of a spatial 2D transform.
+    /// </summary>
+    public class SpatialTransform
+    {
+        #region Private Members
 
-        public struct Point
+        private Point2 _pan;
+
+        #endregion
+
+        #region Public Constructors
+        
+        /// <summary>
+        /// Initializes an instance of <see cref="SpatialTransform"/>.
+        /// </summary>
+        public SpatialTransform()
         {
-            private int _x;
-            private int _y;
+            _pan = new Point2(0, 0);
+            Reset();
+        }
 
-            public Point(int x, int y)
+        #endregion
+
+        #region Public Properties
+
+        /// <summary>
+        /// Gets or sets the scale of the transform.
+        /// </summary>
+        public double Scale { get; set; }
+
+        /// <summary>
+        /// Gets or sets the rotation of the transform.
+        /// </summary>
+        public int Rotation { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether to flip in X direction.
+        /// </summary>
+        public bool FlipX { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether to flip in Y direction.
+        /// </summary>
+        public bool FlipY { get; set; }
+
+        /// <summary>
+        /// Gets or sets the pan of the transform.
+        /// </summary>
+        public Point2 Pan
+        {
+            get
             {
-                _x = x;
-                _y = y;
+                return _pan;
             }
-
-            public int X
+            set
             {
-                get { return _x; }
-                set { _x = value; }
+                _pan = value;
             }
+        }
 
-            public int Y
+        /// <summary>
+        /// Gets whether the transform is set or reset.
+        /// </summary>
+        public bool IsTransformed
+        {
+            get
             {
-                get { return _y; }
-                set { _y = value; }
+                return this.Scale != 1.0 || this.Rotation != 0 || !this.Pan.Equals(Point2.Origin);
             }
         }
 
         #endregion
-#endif
 
-        #region Private Members
-        private double _scale;
-		private int _rotate;
-		private bool _flipx;
-		private bool _flipy;
-		private Point _pan;
-		#endregion
+        #region Public Members
 
-		#region Public Constructors
-		public SpatialTransform() {
-			_pan = new Point(0, 0);
-			Reset();
-		}
-		#endregion
+        /// <summary>
+        /// Add further rotation to the transform.
+        /// </summary>
+        /// <param name="angle">Angle with which to rotate.</param>
+        public void Rotate(int angle)
+        {
+            this.Rotation += angle;
+        }
 
-		#region Public Properties
-		public double Scale {
-			get { return _scale; }
-			set { _scale = value; }
-		}
+        /// <summary>
+        /// Reset the transform.
+        /// </summary>
+        public void Reset()
+        {
+            this.Scale = 1.0;
+            this.Rotation = 0;
+            this.FlipX = false;
+            this.FlipY = false;
+            _pan.X = 0;
+            _pan.Y = 0;
+        }
 
-		public int Rotation {
-			get { return _rotate; }
-			set { _rotate = value; }
-		}
-
-		public bool FlipX {
-			get { return _flipx; }
-			set { _flipx = value; }
-		}
-
-		public bool FlipY {
-			get { return _flipy; }
-			set { _flipy = value; }
-		}
-
-		public Point Pan {
-			get { return _pan; }
-			set { _pan = value; }
-		}
-
-		public bool IsTransformed {
-			get {
-				return _scale != 1.0f ||
-					_rotate != 0.0f ||
-					_pan.X != 0 || 
-                    _pan.Y != 0;
-			}
-		}
-		#endregion
-
-		#region Public Members
-		public void Rotate(int angle) {
-			_rotate += angle;
-		}
-
-		public void Reset() {
-			_scale = 1.0;
-			_rotate = 0;
-			_flipx = false;
-			_flipy = false;
-			_pan.X = 0;
-			_pan.Y = 0;
-		}
-		#endregion
-	}
+        #endregion
+    }
 }

@@ -1,81 +1,80 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Network {
-	/// <summary>
-	/// Options to control the behavior of the <see cref="DicomService"/> base class.
-	/// </summary>
-	public class DicomServiceOptions {
-		/// <summary>Default options for use with the <see cref="DicomService"/> base class.</summary>
-		public readonly static DicomServiceOptions Default = new DicomServiceOptions();
-		
-		/// <summary>Constructor</summary>
-		public DicomServiceOptions() {
-			LogDataPDUs = false;
-			LogDimseDatasets = false;
-			UseRemoteAEForLogName = false;
-			MaxCommandBuffer = 1 * 1024;		//1KB
-			MaxDataBuffer = 1 * 1024 * 1024;	//1MB
-			ThreadPoolLinger = 200;
-			IgnoreSslPolicyErrors = false;
-			TcpNoDelay = true;
-		    OnePDVPerPDU = false;
-		}
+namespace Dicom.Network
+{
+    /// <summary>
+    /// Options to control the behavior of the <see cref="DicomService"/> base class.
+    /// </summary>
+    public class DicomServiceOptions
+    {
+        #region INNER TYPES
 
-        /// <summary>Write one PDU per PDV regardless of whether another PDV would fit in the PDU. Works around common bugs in other implementations.</summary>
-	    public bool OnePDVPerPDU { 
-            get; 
-            set; 
+        /// <summary>Default options for use with the <see cref="DicomService"/> base class.</summary>
+        public static class Default
+        {
+            public static readonly bool LogDataPDUs = false;
+
+            public static readonly bool LogDimseDatasets = false;
+
+            public static readonly bool UseRemoteAEForLogName = false;
+
+            public static readonly uint MaxCommandBuffer = 1 * 1024; //1KB
+
+            public static readonly uint MaxDataBuffer = 1 * 1024 * 1024; //1MB
+
+            public static readonly bool IgnoreSslPolicyErrors = false;
+
+            public static readonly bool TcpNoDelay = true;
+
+            public static readonly int MaxPDVsPerPDU = 0;
         }
 
-	    /// <summary>Write message to log for each P-Data-TF PDU sent or received.</summary>
-		public bool LogDataPDUs {
-			get;
-			set;
-		}
+        #endregion
 
-		/// <summary>Write command and data datasets to log.</summary>
-		public bool LogDimseDatasets {
-			get;
-			set;
-		}
+        #region CONSTRUCTORS
 
-		/// <summary>Use the AE Title of the remote host as the log name.</summary>
-		public bool UseRemoteAEForLogName {
-			get;
-			set;
-		}
+        /// <summary>Constructor</summary>
+        public DicomServiceOptions()
+        {
+            LogDataPDUs = Default.LogDataPDUs;
+            LogDimseDatasets = Default.LogDimseDatasets;
+            UseRemoteAEForLogName = Default.UseRemoteAEForLogName;
+            MaxCommandBuffer = Default.MaxCommandBuffer;
+            MaxDataBuffer = Default.MaxDataBuffer;
+            IgnoreSslPolicyErrors = Default.IgnoreSslPolicyErrors;
+            TcpNoDelay = Default.TcpNoDelay;
+            MaxPDVsPerPDU = Default.MaxPDVsPerPDU;
+        }
 
-		/// <summary>Maximum buffer length for command PDVs when generating P-Data-TF PDUs.</summary>
-		public uint MaxCommandBuffer {
-			get;
-			set;
-		}
+        #endregion
 
-		/// <summary>Maximum buffer length for data PDVs when generating P-Data-TF PDUs.</summary>
-		public uint MaxDataBuffer {
-			get;
-			set;
-		}
+        #region PROPERTIES
 
-		/// <summary>Amount of time in milliseconds to retain Thread Pool thread to process additional requests.</summary>
-		public int ThreadPoolLinger {
-			get;
-			set;
-		}
+        /// <summary>Write message to log for each P-Data-TF PDU sent or received.</summary>
+        public bool LogDataPDUs { get; set; }
 
-		/// <summary>DICOM client should ignore SSL certificate errors.</summary>
-		public bool IgnoreSslPolicyErrors {
-			get;
-			set;
-		}
+        /// <summary>Write command and data datasets to log.</summary>
+        public bool LogDimseDatasets { get; set; }
 
-		/// <summary>Enable or disable TCP Nagle algorithm.</summary>
-		public bool TcpNoDelay {
-			get;
-			set;
-		}
-	}
+        /// <summary>Use the AE Title of the remote host as the log name.</summary>
+        public bool UseRemoteAEForLogName { get; set; }
+
+        /// <summary>Maximum buffer length for command PDVs when generating P-Data-TF PDUs.</summary>
+        public uint MaxCommandBuffer { get; set; }
+
+        /// <summary>Maximum buffer length for data PDVs when generating P-Data-TF PDUs.</summary>
+        public uint MaxDataBuffer { get; set; }
+
+        /// <summary>DICOM client should ignore SSL certificate errors.</summary>
+        public bool IgnoreSslPolicyErrors { get; set; }
+
+        /// <summary>Enable or disable TCP Nagle algorithm.</summary>
+        public bool TcpNoDelay { get; set; }
+
+        /// <summary>The maximum number of PDVs per PDU, or unlimited if set to zero. Setting this to 1 can work around common bugs in other implementations.</summary>
+        public int MaxPDVsPerPDU { get; set; }
+
+        #endregion
+    }
 }

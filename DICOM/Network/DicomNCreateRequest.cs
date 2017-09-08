@@ -1,32 +1,92 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Network {
-	public class DicomNCreateRequest : DicomRequest {
-		public DicomNCreateRequest(DicomDataset command) : base(command) {
-		}
+namespace Dicom.Network
+{
+    /// <summary>
+    /// Representation of the N-CREATE request.
+    /// </summary>
+    public sealed class DicomNCreateRequest : DicomRequest
+    {
+        #region CONSTRUCTORS
 
-		public DicomNCreateRequest(DicomUID affectedClassUid, DicomUID affectedInstanceUid, ushort eventTypeId, DicomPriority priority = DicomPriority.Medium) : base(DicomCommandField.NCreateRequest, affectedClassUid, priority) {
-			SOPInstanceUID = affectedInstanceUid;
-		}
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DicomNCreateRequest"/> class.
+        /// </summary>
+        /// <param name="command">N-CREATE request command.</param>
+        public DicomNCreateRequest(DicomDataset command)
+            : base(command)
+        {
+        }
 
-		public DicomUID SOPInstanceUID {
-			get { return Command.Get<DicomUID>(DicomTag.AffectedSOPInstanceUID); }
-			private set { Command.Add(DicomTag.AffectedSOPInstanceUID, value); }
-		}
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DicomNCreateRequest"/> class.
+        /// </summary>
+        /// <param name="affectedClassUid">Affected SOP class UID.</param>
+        /// <param name="affectedInstanceUid">Affected SOP instance UID.</param>
+        public DicomNCreateRequest(
+            DicomUID affectedClassUid,
+            DicomUID affectedInstanceUid)
+            : base(DicomCommandField.NCreateRequest, affectedClassUid)
+        {
+            SOPInstanceUID = affectedInstanceUid;
+        }
 
-		public delegate void ResponseDelegate(DicomNCreateRequest request, DicomNCreateResponse response);
+        #endregion
 
-		public ResponseDelegate OnResponseReceived;
+        #region PROPERTIES
 
-		internal override void PostResponse(DicomService service, DicomResponse response) {
-			try {
-				if (OnResponseReceived != null)
-					OnResponseReceived(this, (DicomNCreateResponse)response);
-			} catch {
-			}
-		}
-	}
+        /// <summary>
+        /// Gets the affected SOP instance UID.
+        /// </summary>
+        public DicomUID SOPInstanceUID
+        {
+            get
+            {
+                return Command.Get<DicomUID>(DicomTag.AffectedSOPInstanceUID, null);
+            }
+            private set
+            {
+                Command.AddOrUpdate(DicomTag.AffectedSOPInstanceUID, value);
+            }
+        }
+
+        #endregion
+
+        #region DELEGATES AND EVENTS
+
+        /// <summary>
+        /// Delegate representing a N-CREATE RSP received event handler.
+        /// </summary>
+        /// <param name="request">N-CREATE RQ.</param>
+        /// <param name="response">N-CREATE RSP.</param>
+        public delegate void ResponseDelegate(DicomNCreateRequest request, DicomNCreateResponse response);
+
+        /// <summary>
+        /// Gets or sets the handler for the N-CREATE response received event.
+        /// </summary>
+        public ResponseDelegate OnResponseReceived;
+
+        #endregion
+
+        #region METHODS
+
+        /// <summary>
+        /// Invoke the event handler upon receiving a N-CREATE response.
+        /// </summary>
+        /// <param name="service">Associated DICOM service.</param>
+        /// <param name="response">N-CREATE response.</param>
+        protected internal override void PostResponse(DicomService service, DicomResponse response)
+        {
+            try
+            {
+                if (OnResponseReceived != null) OnResponseReceived(this, (DicomNCreateResponse)response);
+            }
+            catch
+            {
+            }
+        }
+
+        #endregion
+    }
 }

@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Network {
-	public interface IDicomCEchoProvider {
-		DicomCEchoResponse OnCEchoRequest(DicomCEchoRequest request, DicomPresentationContext presentationContext);
-	}
+namespace Dicom.Network
+{
+    public interface IDicomCEchoProvider
+    {
+        DicomCEchoResponse OnCEchoRequest(DicomCEchoRequest request);
+    }
 }

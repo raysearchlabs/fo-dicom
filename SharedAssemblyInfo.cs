@@ -1,15 +1,22 @@
+// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
 #if WIN32
 using namespace System::Reflection;
+using namespace System::Resources;
 #else
 using System.Reflection;
+using System.Resources;
+
 #endif
 
-[assembly: AssemblyCompanyAttribute("Fellow Oak")]
-[assembly: AssemblyProductAttribute("Fellow Oak DICOM for .NET")]
-[assembly: AssemblyCopyrightAttribute("Copyright � Fellow Oak, Inc. 2012-2015")]
-[assembly: AssemblyTrademarkAttribute("")]
-[assembly: AssemblyCultureAttribute("")]
+[assembly: AssemblyCompany("fo-dicom")]
+[assembly: AssemblyProduct("fo-dicom")]
+[assembly: AssemblyCopyright("Copyright © fo-dicom contributors 2012-2017")]
+[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCulture("")]
+[assembly: NeutralResourcesLanguage("en")]
 
-[assembly: AssemblyVersionAttribute("1.0.59.0")]
-[assembly: AssemblyFileVersion("1.0.59.0")]
-[assembly: AssemblyInformationalVersionAttribute("1.0.3")]
+[assembly: AssemblyVersion("3.0.2")]
+[assembly: AssemblyFileVersion("3.0.2.1")]
+[assembly: AssemblyInformationalVersion("3.0.2")]

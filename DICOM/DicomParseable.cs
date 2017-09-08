@@ -1,16 +1,23 @@
-﻿using System;
-using System.Reflection;
-using System.Runtime.InteropServices;
+﻿// Copyright (c) 2012-2017 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom {
-	public abstract class DicomParseable {
-		public static T Parse<T>(string value) {
-			if (!typeof(T).IsSubclassOf(typeof(DicomParseable)))
-				throw new DicomDataException("DicomParseable.Parse expects a class derived from DicomParseable");
 
-			Type t = typeof(T);
-			MethodInfo m = typeof(T).GetMethod("Parse", BindingFlags.Public | BindingFlags.Static);
-			return (T)m.Invoke(null, new object[] { value });
-		}
-	}
+namespace Dicom
+{
+    using System.Linq;
+    using System.Reflection;
+
+    public abstract class DicomParseable
+    {
+        public static T Parse<T>(string value)
+        {
+            if (!typeof(T).GetTypeInfo().IsSubclassOf(typeof(DicomParseable)))
+            {
+                throw new DicomDataException("DicomParseable.Parse expects a class derived from DicomParseable");
+            }
+
+            var method = typeof(T).GetTypeInfo().GetDeclaredMethods("Parse").Single(m => m.IsPublic && m.IsStatic);
+            return (T)method.Invoke(null, new object[] { value });
+        }
+    }
 }
