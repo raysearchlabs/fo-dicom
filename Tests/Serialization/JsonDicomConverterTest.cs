@@ -157,6 +157,33 @@ namespace Dicom.Serialization
             var reconstituatedDataset = JsonConvert.DeserializeObject<DicomDataset>(json, new JsonDicomConverter());
 
             ValidatePrivateCreatorsExist_(reconstituatedDataset);
+
+            foreach (var item in originalDataset)
+            {
+                if (item.ValueRepresentation.IsString)
+                {
+                    this.output_.WriteLine($"{item.Tag} : {originalDataset.Get<string>(item.Tag)}");
+                }
+            }
+
+            foreach (var item in reconstituatedDataset)
+            {
+                if (item.ValueRepresentation.IsString)
+                {
+                    this.output_.WriteLine($"{item.Tag} : {reconstituatedDataset.Get<string>(item.Tag)}");
+                }
+            }
+
+            foreach (var item in originalDataset)
+            {
+                if (item.ValueRepresentation.IsString)
+                {
+                    var expectedValue = originalDataset.Get<string>(item.Tag);
+                    var actualValue = reconstituatedDataset.Get<string>(item.Tag);
+                    this.output_.WriteLine($"{item.Tag} : {expectedValue} == {actualValue}");
+                    Assert.Equal(expectedValue, actualValue);
+                }
+            }
         }
 
         private static void ValidatePrivateCreatorsExist_(DicomDataset dataset)
