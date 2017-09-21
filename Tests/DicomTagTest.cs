@@ -52,10 +52,10 @@ namespace Dicom
         }
 
         [Fact]
-        public void Contains_SamePrivateTagsDifferentPrivateCreator_ReturnsTrue()
+        public void Contains_SamePrivateTagsDifferentPrivateCreator_ReturnsFalse()
         {
             var dataset = new DicomDataset { new DicomUnknown(new DicomTag(0x3005, 0x3025, "PRIVATE")) };
-            Assert.True(dataset.Contains(new DicomTag(0x3005, 0x1525, "PRIVATE")));
+            Assert.False(dataset.Contains(new DicomTag(0x3005, 0x1525, "PRIVATE")));
         }
 
         #endregion

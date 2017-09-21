@@ -157,6 +157,16 @@ namespace Dicom.Serialization
             var reconstituatedDataset = JsonConvert.DeserializeObject<DicomDataset>(json, new JsonDicomConverter());
 
             ValidatePrivateCreatorsExist_(reconstituatedDataset);
+        }
+
+
+        [Fact]
+        public void Deserialize_AllValues_AreSame()
+        {
+            var originalDataset = BuildAllTypesDataset_();
+
+            var json = JsonConvert.SerializeObject(originalDataset, new JsonDicomConverter());
+            var reconstituatedDataset = JsonConvert.DeserializeObject<DicomDataset>(json, new JsonDicomConverter());
 
             foreach (var item in originalDataset)
             {
