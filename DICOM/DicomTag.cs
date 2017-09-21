@@ -149,8 +149,6 @@ namespace Dicom
 
             if (Group != other.Group) return false;
 
-            if (Element != other.Element) return false;
-
             if (PrivateCreator != null || other.PrivateCreator != null)
             {
                 if (PrivateCreator == null || other.PrivateCreator == null) return false;
@@ -160,7 +158,7 @@ namespace Dicom
                 return (Element & 0xff) == (other.Element & 0xff);
             }
 
-            return true;
+            return Element == other.Element;
         }
 
         public static bool operator ==(DicomTag a, DicomTag b)
