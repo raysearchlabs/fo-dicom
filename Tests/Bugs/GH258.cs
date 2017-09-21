@@ -28,7 +28,7 @@ namespace Dicom.Bugs
             Assert.Equal(expected, actual);
         }
 
-        [Fact]
+        [Fact(Skip = "Needed?")]
         public void Log_ExceptionNotInFormattedString_ExceptionLoggedNotIncludedInMessage()
         {
             var name = nameof(GH258) + "B";
