@@ -16,7 +16,7 @@ namespace Dicom
         /// <summary>
         /// Default DICOM encoding.
         /// </summary>
-        public static readonly Encoding Default = IOManager.BaseEncoding;
+        public static Encoding Default => IOManager.BaseEncoding;
 
         /// <summary>
         /// Get encoding from charset.

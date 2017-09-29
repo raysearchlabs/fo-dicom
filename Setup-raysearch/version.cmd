@@ -1,1 +1,1 @@
-set version=3.0.4
+set version=3.0.5
