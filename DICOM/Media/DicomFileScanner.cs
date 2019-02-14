@@ -1,127 +1,143 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Media {
-	public delegate void DicomScanProgressCallback(DicomFileScanner scanner, string directory, int count);
-	public delegate void DicomScanFileFoundCallback(DicomFileScanner scanner, DicomFile file, string fileName);
-	public delegate void DicomScanCompleteCallback(DicomFileScanner scanner);
+namespace Dicom.Media
+{
+#if NET35
+    using System.Threading;
+#else
+    using System.Threading.Tasks;
+#endif
 
-	public class DicomFileScanner {
-		#region Private Members
-		private string _pattern;
-		private bool _recursive;
-		private bool _stop;
-		private bool _progressOnDirectory;
-		private int _progressAfterCount;
-		private bool _checkForValidHeader;
-		private int _count;
-		#endregion
+    using Dicom.IO;
 
-		#region Public Constructor
-		public DicomFileScanner() {
-			_pattern = null;
-			_recursive = true;
-			_progressOnDirectory = true;
-			_progressAfterCount = 10;
-		}
-		#endregion
+    public delegate void DicomScanProgressCallback(DicomFileScanner scanner, string directory, int count);
 
-		public event DicomScanProgressCallback Progress;
-		public event DicomScanFileFoundCallback FileFound;
-		public event DicomScanCompleteCallback Complete;
+    public delegate void DicomScanFileFoundCallback(DicomFileScanner scanner, DicomFile file, string fileName);
 
-		#region Public Properties
-		public bool ProgressOnDirectoryChange {
-			get { return _progressOnDirectory; }
-			set { _progressOnDirectory = value; }
-		}
+    public delegate void DicomScanCompleteCallback(DicomFileScanner scanner);
 
-		public int ProgressFilesCount {
-			get { return _progressAfterCount; }
-			set { _progressAfterCount = value; }
-		}
+    public class DicomFileScanner
+    {
+        #region Private Members
 
-		public bool CheckForValidHeader {
-			get { return _checkForValidHeader; }
-			set { _checkForValidHeader = value; }
-		}
-		#endregion
+        private readonly string _pattern;
 
-		#region Public Methods
-		public void Start(string directory) {
-			_stop = false;
-			_count = 0;
-			new Thread(ScanProc).Start(directory);
-		}
+        private readonly bool _recursive;
 
-		public void Stop() {
-			_stop = true;
-		}
-		#endregion
+        private bool _stop;
+        private int _count;
 
-		#region Private Methods
-		private void ScanProc(object state) {
-			string directory = (string)state;
-			ScanDirectory(directory);
+        #endregion
 
-			if (Complete != null)
-				Complete(this);
-		}
+        #region Public Constructor
 
-		private void ScanDirectory(string directory) {
-			if (_stop)
-				return;
+        public DicomFileScanner()
+        {
+            _pattern = null;
+            _recursive = true;
+            ProgressOnDirectoryChange = true;
+            ProgressFilesCount = 10;
+        }
 
-			if (Progress != null && _progressOnDirectory)
-				Progress(this, directory, _count);
+        #endregion
 
-			try {
-				string[] files;
-				if (!String.IsNullOrEmpty(_pattern))
-					files = Directory.GetFiles(directory, _pattern);
-				else
-					files = Directory.GetFiles(directory);
+        public event DicomScanProgressCallback Progress;
 
-				foreach (string file in files) {
-					if (_stop)
-						return;
+        public event DicomScanFileFoundCallback FileFound;
 
-					ScanFile(file);
+        public event DicomScanCompleteCallback Complete;
 
-					_count++;
-					if ((_count % _progressAfterCount) == 0 && Progress != null)
-						Progress(this, directory, _count);
-				}
+      #region Public Properties
 
-				if (!_recursive)
-					return;
+      public bool ProgressOnDirectoryChange { get; set; }
 
-				string[] dirs = Directory.GetDirectories(directory);
-				foreach (string dir in dirs) {
-					if (_stop)
-						return;
+      public int ProgressFilesCount { get; set; }
 
-					ScanDirectory(dir);
-				}
-			} catch {
-			}
-		}
+      public bool CheckForValidHeader { get; set; }
 
-		private void ScanFile(string file) {
-			try {
-				if (CheckForValidHeader && !DicomFile.HasValidHeader(file))
-					return;
+      #endregion
 
-				var df = DicomFile.Open(file);
+      #region Public Methods
 
-				if (FileFound != null)
-					FileFound(this, df, file);
-			} catch {
-				// ignore exceptions?
-			}
-		}
-		#endregion
-	}
+      public void Start(string directory)
+        {
+            _stop = false;
+            _count = 0;
+#if NET35
+            this.ScanProc(directory);
+#else
+            Task.Run(() => this.ScanProc(directory));
+#endif
+        }
+
+        public void Stop()
+        {
+            _stop = true;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private void ScanProc(string directory)
+        {
+            ScanDirectory(directory);
+            Complete?.Invoke(this);
+        }
+
+        private void ScanDirectory(string path)
+        {
+            if (_stop) return;
+
+            if (Progress != null && ProgressOnDirectoryChange) Progress(this, path, _count);
+
+            try
+            {
+                var directory = IOManager.CreateDirectoryReference(path);
+                var files = directory.EnumerateFileNames(_pattern);
+
+                foreach (string file in files)
+                {
+                    if (_stop) return;
+
+                    ScanFile(file);
+
+                    _count++;
+                    if ((_count % ProgressFilesCount) == 0 && Progress != null) Progress(this, path, _count);
+                }
+
+                if (!_recursive) return;
+
+                var dirs = directory.EnumerateDirectoryNames();
+                foreach (string dir in dirs)
+                {
+                    if (_stop) return;
+
+                    ScanDirectory(dir);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void ScanFile(string file)
+        {
+            try
+            {
+                if (CheckForValidHeader && !DicomFile.HasValidHeader(file)) return;
+
+                var df = DicomFile.Open(file);
+
+                FileFound?.Invoke(this, df, file);
+            }
+            catch
+            {
+                // ignore exceptions?
+            }
+        }
+
+        #endregion
+    }
 }

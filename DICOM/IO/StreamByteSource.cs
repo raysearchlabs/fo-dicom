@@ -1,159 +1,242 @@
-﻿using System;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
 using System.Collections.Generic;
 using System.IO;
 
+#if !NET35
+using System.Threading.Tasks;
+#endif
+
 using Dicom.IO.Buffer;
 
-namespace Dicom.IO {
-	public class StreamByteSource : IByteSource {
-		private Stream _stream;
-		private Endian _endian;
-		private BinaryReader _reader;
-		private long _mark;
+namespace Dicom.IO
+{
+    /// <summary>
+    /// Stream byte source for reading.
+    /// </summary>
+    public class StreamByteSource : IByteSource
+    {
+        #region FIELDS
 
-		private int _largeObjectSize;
+        private readonly Stream _stream;
 
-		private Stack<long> _milestones;
-		private object _lock;
+        private Endian _endian;
 
-		public StreamByteSource(Stream stream) {
-			_stream = stream;
-			_endian = Endian.LocalMachine;
-			_reader = EndianBinaryReader.Create(_stream, _endian);
-			_mark = 0;
+        private BinaryReader _reader;
 
-			_largeObjectSize = 64 * 1024;
+        private long _mark;
 
-			_milestones = new Stack<long>();
-			_lock = new object();
-		}
+        private readonly Stack<long> _milestones;
 
-		public Endian Endian {
-			get { return _endian; }
-			set {
-				if (_endian != value) {
-					lock (_lock) {
-						_endian = value;
-						_reader = EndianBinaryReader.Create(_stream, _endian);
-					}
-				}
-			}
-		}
+        private readonly object _lock;
 
-		public long Position {
-			get { return _stream.Position; }
-		}
+        #endregion
 
-		public long Marker {
-			get { return _mark; }
-		}
+        #region CONSTRUCTORS
 
-		public bool IsEOF {
-			get { return _stream.Position >= _stream.Length; }
-		}
+        /// <summary>
+        /// Initializes a new instance of <see cref="StreamByteSource"/>.
+        /// </summary>
+        /// <param name="stream">Stream to read from.</param>
+        public StreamByteSource(Stream stream)
+        {
+            _stream = stream;
+            _endian = Endian.LocalMachine;
+            _reader = EndianBinaryReader.Create(_stream, _endian);
+            _mark = 0;
 
-		public bool CanRewind {
-			get { return _stream.CanSeek; }
-		}
+            LargeObjectSize = 64 * 1024;
 
-		public int LargeObjectSize {
-			get { return _largeObjectSize; }
-			set { _largeObjectSize = value; }
-		}
+            _milestones = new Stack<long>();
+            _lock = new object();
+        }
 
-		public byte GetUInt8() {
-			return _reader.ReadByte();
-		}
+        #endregion
 
-		public short GetInt16() {
-			return _reader.ReadInt16();
-		}
+        #region PROPERTIES
 
-		public ushort GetUInt16() {
-			return _reader.ReadUInt16();
-		}
+        /// <inheritdoc />
+        public Endian Endian
+        {
+            get
+            {
+                return _endian;
+            }
+            set
+            {
+                if (_endian != value)
+                {
+                    lock (_lock)
+                    {
+                        _endian = value;
+                        _reader = EndianBinaryReader.Create(_stream, _endian);
+                    }
+                }
+            }
+        }
 
-		public int GetInt32() {
-			return _reader.ReadInt32();
-		}
+        /// <inheritdoc />
+        public long Position => _stream.Position;
 
-		public uint GetUInt32() {
-			return _reader.ReadUInt32();
-		}
+        /// <inheritdoc />
+        public long Marker => _mark;
 
-		public long GetInt64() {
-			return _reader.ReadInt64();
-		}
+        /// <inheritdoc />
+        public bool IsEOF => _stream.Position >= _stream.Length;
 
-		public ulong GetUInt64() {
-			return _reader.ReadUInt64();
-		}
+        /// <inheritdoc />
+        public bool CanRewind => _stream.CanSeek;
 
-		public float GetSingle() {
-			return _reader.ReadSingle();
-		}
+        /// <inheritdoc />
+        public int MilestonesCount => _milestones.Count;
 
-		public double GetDouble() {
-			return _reader.ReadDouble();
-		}
+        /// <summary>
+        /// Gets or sets the size of what is considered a large object.
+        /// </summary>
+        public int LargeObjectSize { get; set; }
 
-		public byte[] GetBytes(int count) {
-			return _reader.ReadBytes(count);
-		}
+        #endregion
 
-		public IByteBuffer GetBuffer(uint count) {
-			IByteBuffer buffer = null;
-			if (count == 0)
-				buffer = EmptyBuffer.Value;
-			else if (count >= _largeObjectSize) {
-				buffer = new StreamByteBuffer(_stream, _stream.Position, count);
-				_stream.Seek((int)count, SeekOrigin.Current);
-			} else
-				buffer = new MemoryByteBuffer(GetBytes((int)count));
-			return buffer;
-		}
+        #region METHODS
 
-		public void Skip(int count) {
-			_stream.Seek(count, SeekOrigin.Current);
-		}
+        /// <inheritdoc />
+        public byte GetUInt8()
+        {
+            return _reader.ReadByte();
+        }
 
-		public void Mark() {
-			_mark = _stream.Position;
-		}
+        /// <inheritdoc />
+        public short GetInt16()
+        {
+            return _reader.ReadInt16();
+        }
 
-		public void Rewind() {
-			_stream.Position = _mark;
-		}
+        /// <inheritdoc />
+        public ushort GetUInt16()
+        {
+            return _reader.ReadUInt16();
+        }
 
-		public void PushMilestone(uint count) {
-			lock (_lock)
-				_milestones.Push(_stream.Position + count);
-		}
+        /// <inheritdoc />
+        public int GetInt32()
+        {
+            return _reader.ReadInt32();
+        }
 
-		public void PopMilestone() {
-			lock (_lock)
-				_milestones.Pop();
-		}
+        /// <inheritdoc />
+        public uint GetUInt32()
+        {
+            return _reader.ReadUInt32();
+        }
 
-		public bool HasReachedMilestone() {
-			lock (_lock) {
-				if (_milestones.Count > 0 && _stream.Position >= _milestones.Peek())
-					return true;
-				return false;
-			}
-		}
+        /// <inheritdoc />
+        public long GetInt64()
+        {
+            return _reader.ReadInt64();
+        }
 
-		public bool Require(uint count) {
-			return Require(count, null, null);
-		}
+        /// <inheritdoc />
+        public ulong GetUInt64()
+        {
+            return _reader.ReadUInt64();
+        }
 
-		public bool Require(uint count, ByteSourceCallback callback, object state) {
-			lock (_lock) {
-				if ((_stream.Length - _stream.Position) >= count)
-					return true;
+        /// <inheritdoc />
+        public float GetSingle()
+        {
+            return _reader.ReadSingle();
+        }
 
-				throw new DicomIoException("Requested {0} bytes past end of fixed length stream.", count);
-			}
-		}
-	}
+        /// <inheritdoc />
+        public double GetDouble()
+        {
+            return _reader.ReadDouble();
+        }
+
+        /// <inheritdoc />
+        public byte[] GetBytes(int count)
+        {
+            return _reader.ReadBytes(count);
+        }
+
+        /// <inheritdoc />
+        public IByteBuffer GetBuffer(uint count)
+        {
+            IByteBuffer buffer = null;
+            if (count == 0) buffer = EmptyBuffer.Value;
+            else if (count >= this.LargeObjectSize)
+            {
+                buffer = new StreamByteBuffer(_stream, _stream.Position, count);
+                _stream.Seek((int)count, SeekOrigin.Current);
+            }
+            else buffer = new MemoryByteBuffer(GetBytes((int)count));
+            return buffer;
+        }
+
+#if !NET35
+        /// <inheritdoc />
+        public Task<IByteBuffer> GetBufferAsync(uint count)
+        {
+            return Task.FromResult(this.GetBuffer(count));
+        }
+#endif
+
+        /// <inheritdoc />
+        public void Skip(int count)
+        {
+            _stream.Seek(count, SeekOrigin.Current);
+        }
+
+        /// <inheritdoc />
+        public void Mark()
+        {
+            _mark = _stream.Position;
+        }
+
+        /// <inheritdoc />
+        public void Rewind()
+        {
+            _stream.Position = _mark;
+        }
+
+        /// <inheritdoc />
+        public void PushMilestone(uint count)
+        {
+            lock (_lock) _milestones.Push(_stream.Position + count);
+        }
+
+        /// <inheritdoc />
+        public void PopMilestone()
+        {
+            lock (_lock) _milestones.Pop();
+        }
+
+        /// <inheritdoc />
+        public bool HasReachedMilestone()
+        {
+            lock (_lock)
+            {
+                if (_milestones.Count > 0 && _stream.Position >= _milestones.Peek()) return true;
+                return false;
+            }
+        }
+
+        /// <inheritdoc />
+        public bool Require(uint count)
+        {
+            return Require(count, null, null);
+        }
+
+        /// <inheritdoc />
+        public bool Require(uint count, ByteSourceCallback callback, object state)
+        {
+            lock (_lock)
+            {
+                return (_stream.Length - _stream.Position) >= count;
+            }
+        }
+
+        #endregion
+    }
 }

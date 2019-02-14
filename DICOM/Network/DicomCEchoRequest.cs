@@ -1,26 +1,33 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Network {
-	public class DicomCEchoRequest : DicomRequest {
-		public DicomCEchoRequest(DicomDataset command) : base(command) {
-		}
+namespace Dicom.Network
+{
+    public sealed class DicomCEchoRequest : DicomRequest
+    {
+        public DicomCEchoRequest(DicomDataset command)
+            : base(command)
+        {
+        }
 
-		public DicomCEchoRequest(DicomPriority priority = DicomPriority.Medium) : base(DicomCommandField.CEchoRequest, DicomUID.VerificationSOPClass, priority) {
-		}
+        public DicomCEchoRequest()
+            : base(DicomCommandField.CEchoRequest, DicomUID.Verification)
+        {
+        }
 
-		public delegate void ResponseDelegate(DicomCEchoRequest request, DicomCEchoResponse response);
+        public delegate void ResponseDelegate(DicomCEchoRequest request, DicomCEchoResponse response);
 
-		public ResponseDelegate OnResponseReceived;
+        public ResponseDelegate OnResponseReceived;
 
-		internal override void PostResponse(DicomService service, DicomResponse response) {
-			try {
-				if (OnResponseReceived != null)
-					OnResponseReceived(this, (DicomCEchoResponse)response);
-			} catch {
-			}
-		}
-	}
+        protected internal override void PostResponse(DicomService service, DicomResponse response)
+        {
+            try
+            {
+                if (OnResponseReceived != null) OnResponseReceived(this, (DicomCEchoResponse)response);
+            }
+            catch
+            {
+            }
+        }
+    }
 }

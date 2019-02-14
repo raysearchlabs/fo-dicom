@@ -1,410 +1,250 @@
+// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
 using System;
 using System.Collections.Generic;
+
 using Dicom.Imaging.LUT;
-using Dicom.IO;
 
-#if NETFX_CORE
-using Windows.UI.Xaml.Media.Imaging;
-#elif SILVERLIGHT
-using System.Windows.Media.Imaging;
-#elif TOUCH
-using MonoTouch.CoreGraphics;
-using BitmapSource = MonoTouch.CoreGraphics.CGImage;
-#else
-using System.Drawing;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-#endif
+namespace Dicom.Imaging.Render
+{
+    /// <summary>
+    /// The Image Graphic implementation of <seealso cref="IGraphic"/>
+    /// </summary>
+    public class ImageGraphic : IGraphic
+    {
+        #region Protected Members
 
-namespace Dicom.Imaging.Render {
-	/// <summary>
-	/// The Image Graphic implementation of <seealso cref="IGraphic"/>
-	/// </summary>
-	public class ImageGraphic : IGraphic {
-		#region Protected Members
-		protected IPixelData _originalData;
-		protected IPixelData _scaledData;
+        protected IPixelData _originalData;
 
-		protected PinnedIntArray _pixels;
-#if NETFX_CORE || SILVERLIGHT
-		protected WriteableBitmap _bitmap;
-#elif TOUCH
-		protected BitmapSource _bitmap;
-#else
-	    private const int DPI = 96;
-		protected BitmapSource _bitmapSource;
-		protected Bitmap _bitmap;
-#endif
+        protected IPixelData _scaledData;
 
-		protected double _scaleFactor;
-		protected int _rotation;
-		protected bool _flipX;
-		protected bool _flipY;
-		protected int _offsetX;
-		protected int _offsetY;
+        protected double _scaleFactor;
 
-		protected int _zorder;
-		protected bool _applyLut;
+        protected int _rotation;
 
-		protected List<OverlayGraphic> _overlays;
-		#endregion
+        protected bool _flipX;
 
-		#region Public Properties
-		/// <summary>
-		/// Number of pixel componenets (samples)
-		/// </summary>
-		public int Components {
-			get { return OriginalData.Components; }
-		}
+        protected bool _flipY;
 
-		/// <summary>
-		/// Original pixel data
-		/// </summary>
-		public IPixelData OriginalData {
-			get { return _originalData; }
-		}
+        protected int _offsetX;
 
-		public int OriginalWidth {
-			get { return _originalData.Width; }
-		}
-		public int OriginalHeight {
-			get { return _originalData.Height; }
-		}
-		public int OriginalOffsetX {
-			get { return _offsetX; }
-		}
+        protected int _offsetY;
 
-		public int OriginalOffsetY {
-			get { return _offsetY; }
-		}
+        protected int _zorder;
 
-		public double ScaleFactor {
-			get { return _scaleFactor; }
-		}
+        protected bool _applyLut;
 
-		/// <summary>
-		/// Scaled pixel data
-		/// </summary>
-		public IPixelData ScaledData {
-			get {
-				if (_scaledData == null) {
-					if (Math.Abs(_scaleFactor - 1.0) <= Double.Epsilon)
-						_scaledData = _originalData;
-					else
-						_scaledData = OriginalData.Rescale(_scaleFactor);
-				}
-				return _scaledData;
-			}
-		}
-		public int ScaledWidth {
-			get { return ScaledData.Width; }
-		}
-		public int ScaledHeight {
-			get { return ScaledData.Height; }
-		}
-		public int ScaledOffsetX {
-			get { return (int)(_offsetX * _scaleFactor); }
-		}
+        protected List<OverlayGraphic> _overlays;
 
-		public int ScaledOffsetY {
-			get { return (int)(_offsetY * _scaleFactor); }
-		}
+        #endregion
 
-		public int ZOrder {
-			get { return _zorder; }
-			set { _zorder = value; }
-		}
-		#endregion
+        #region Public Properties
 
-		#region Public Constructors
-		/// <summary>
-		/// Initialize new instance of <seealso cref="ImageGraphic"/>
-		/// </summary>
-		/// <param name="pixelData">Pixel data</param>
-		public ImageGraphic(IPixelData pixelData) : this() {
-			_originalData = pixelData;
-			Scale(1.0);
-		}
+        /// <summary>
+        /// Gets the number of pixel components (samples)
+        /// </summary>
+        public int Components => OriginalData.Components;
 
-		/// <summary>
-		/// Default constructor
-		/// </summary>
-		protected ImageGraphic() {
-			_zorder = 255;
-			_applyLut = true;
-			_overlays = new List<OverlayGraphic>();
-		}
-		#endregion
+        /// <summary>
+        /// Gets the original pixel data.
+        /// </summary>
+        public IPixelData OriginalData => _originalData;
 
-		#region Public Members
-		/// <summary>
-		/// Add overlay to render over the resulted image 
-		/// </summary>
-		/// <param name="overlay">Overlay graphic </param>
-		public void AddOverlay(OverlayGraphic overlay) {
-			_overlays.Add(overlay);
-			overlay.Scale(_scaleFactor);
-		}
+        /// <inheritdoc />
+        public int OriginalWidth => _originalData.Width;
 
-		public void Reset() {
-			Scale(1.0);
-			_rotation = 0;
-			_flipX = false;
-			_flipY = false;
-		}
+        /// <inheritdoc />
+        public int OriginalHeight => _originalData.Height;
 
-		public void Scale(double scale) {
-			if (Math.Abs(scale - _scaleFactor) <= Double.Epsilon)
-				return;
+        /// <inheritdoc />
+        public int OriginalOffsetX => _offsetX;
 
-			_scaleFactor = scale;
-			if (_bitmap != null) {
-				_scaledData = null;
-				_pixels.Dispose();
-				_pixels = null;
-				_bitmap = null;
-			}
+        /// <inheritdoc />
+        public int OriginalOffsetY => _offsetY;
 
-			foreach (var overlay in _overlays) {
-				overlay.Scale(scale);
-			}
-		}
+        /// <inheritdoc />
+        public double ScaleFactor => _scaleFactor;
 
-		public void BestFit(int width, int height) {
-			double xF = (double)width / (double)OriginalWidth;
-			double yF = (double)height / (double)OriginalHeight;
-			Scale(Math.Min(xF, yF));
-		}
+        /// <summary>
+        /// Gets scaled pixel data.
+        /// </summary>
+        public IPixelData ScaledData
+        {
+            get
+            {
+                if (_scaledData == null)
+                {
+                    _scaledData = Math.Abs(_scaleFactor - 1.0) <= double.Epsilon
+                        ? _originalData
+                        : OriginalData.Rescale(_scaleFactor);
+                }
 
-		public void Rotate(int angle) {
-			if (angle > 0) {
-				if (angle <= 90)
-					_rotation += 90;
-				else if (angle <= 180)
-					_rotation += 180;
-				else if (angle <= 270)
-					_rotation += 270;
-			} else if (angle < 0) {
-				if (angle >= -90)
-					_rotation -= 90;
-				else if (angle >= -180)
-					_rotation -= 180;
-				else if (angle >= -270)
-					_rotation -= 270;
-			}
-			if (angle != 0) {
-				if (_rotation >= 360)
-					_rotation -= 360;
-				else if (_rotation < 0)
-					_rotation += 360;
-			}
-		}
+                return _scaledData;
+            }
+        }
 
-		public void FlipX() {
-			_flipX = !_flipX;
-		}
+        /// <inheritdoc />
+        public int ScaledWidth => ScaledData.Width;
 
-		public void FlipY() {
-			_flipY = !_flipY;
-		}
+        /// <inheritdoc />
+        public int ScaledHeight => ScaledData.Height;
 
-		public void Transform(double scale, int rotation, bool flipx, bool flipy) {
-			Scale(scale);
-			Rotate(rotation);
-			_flipX = flipx;
-			_flipY = flipy;
-		}
+        /// <inheritdoc />
+        public int ScaledOffsetX => (int)(_offsetX * _scaleFactor);
 
-#if NETFX_CORE || SILVERLIGHT
-		public BitmapSource RenderImageSource(ILUT lut)
-		{
-			var render = false;
+        /// <inheritdoc />
+        public int ScaledOffsetY => (int)(_offsetY * _scaleFactor);
 
-			if (_bitmap == null) {
-				_pixels = new PinnedIntArray(ScaledData.Width * ScaledData.Height);
-				_bitmap = BitmapFactory.New(ScaledData.Width, ScaledData.Height);
-				render = true;
-			}
+        /// <inheritdoc />
+        public int ZOrder
+        {
+            get
+            {
+                return _zorder;
+            }
+            set
+            {
+                _zorder = value;
+            }
+        }
 
-			if (_applyLut && lut != null && !lut.IsValid) {
-				lut.Recalculate();
-				render = true;
-			}
+        #endregion
 
-			if (render) {
-				ScaledData.Render((_applyLut ? lut : null), _pixels.Data);
+        #region Public Constructors
 
-				foreach (var overlay in _overlays) {
-					overlay.Render(_pixels.Data, ScaledData.Width, ScaledData.Height);
-				}
-			}
+        /// <summary>
+        /// Initialize new instance of <seealso cref="ImageGraphic"/>
+        /// </summary>
+        /// <param name="pixelData">Pixel data</param>
+        public ImageGraphic(IPixelData pixelData)
+            : this()
+        {
+            _originalData = pixelData;
+            Scale(1.0);
+        }
 
-			using (var context = _bitmap.GetBitmapContext())
-			{
-				Array.Copy(_pixels.Data, context.Pixels, _pixels.Count);
+        /// <summary>
+        /// Default constructor
+        /// </summary>
+        protected ImageGraphic()
+        {
+            _zorder = 255;
+            _applyLut = true;
+            _overlays = new List<OverlayGraphic>();
+        }
 
-				_bitmap.Rotate(_rotation);
-				if (_flipX) _bitmap.Flip(WriteableBitmapExtensions.FlipMode.Horizontal);
-				if (_flipY) _bitmap.Flip(WriteableBitmapExtensions.FlipMode.Vertical);
-			}
+        #endregion
 
-			return _bitmap;
-		}
-#elif TOUCH
-		public BitmapSource RenderImageSource(ILUT lut)
-		{
-			var render = false;
+        #region Public Members
 
-			if (_bitmap == null)
-			{
-				_pixels = new PinnedIntArray(ScaledData.Width * ScaledData.Height);
-				render = true;
-			}
+        /// <summary>
+        /// Add overlay to render over the resulted image 
+        /// </summary>
+        /// <param name="overlay">Overlay graphic </param>
+        public void AddOverlay(OverlayGraphic overlay)
+        {
+            _overlays.Add(overlay);
+            overlay.Scale(_scaleFactor);
+        }
 
-			if (_applyLut && lut != null && !lut.IsValid)
-			{
-				lut.Recalculate();
-				render = true;
-			}
+        /// <inheritdoc />
+        public void Reset()
+        {
+            Scale(1.0);
+            _rotation = 0;
+            _flipX = false;
+            _flipY = false;
+        }
 
-			if (render)
-			{
-				ScaledData.Render((_applyLut ? lut : null), _pixels.Data);
+        /// <inheritdoc />
+        public void Scale(double scale)
+        {
+            if (Math.Abs(scale - _scaleFactor) <= double.Epsilon) return;
 
-				foreach (var overlay in _overlays)
-				{
-					overlay.Render(_pixels.Data, ScaledData.Width, ScaledData.Height);
-				}
-			}
+            _scaleFactor = scale;
+            _scaledData = null;
 
-			using (
-				var context = new CGBitmapContext(_pixels, ScaledWidth, ScaledHeight, 8, 4 * ScaledWidth,
-				                                  CGColorSpace.CreateDeviceRGB(), CGImageAlphaInfo.PremultipliedLast))
-			{
-				var transform = CGAffineTransform.MakeRotation((float)(_rotation * Math.PI / 180.0));
-				transform.Scale(_flipX ? -1.0f : 1.0f, _flipY ? -1.0f : 1.0f);
-				transform.Translate(_flipX ? ScaledWidth : 0.0f, _flipY ? ScaledHeight : 0.0f);
-				context.ConcatCTM(transform);
+            foreach (var overlay in _overlays)
+            {
+                overlay.Scale(scale);
+            }
+        }
 
-				_bitmap = context.ToImage();
-			}
+        /// <inheritdoc />
+        public void BestFit(int width, int height)
+        {
+            double xF = (double)width / OriginalWidth;
+            double yF = (double)height / OriginalHeight;
+            Scale(Math.Min(xF, yF));
+        }
 
-			return _bitmap;
-		}
-#else
-		public BitmapSource RenderImageSource(ILUT lut) {
-			bool render = false;
+        /// <inheritdoc />
+        public void Rotate(int angle)
+        {
+            if (angle > 0)
+            {
+                if (angle <= 90) _rotation += 90;
+                else if (angle <= 180) _rotation += 180;
+                else if (angle <= 270) _rotation += 270;
+            }
+            else if (angle < 0)
+            {
+                if (angle >= -90) _rotation -= 90;
+                else if (angle >= -180) _rotation -= 180;
+                else if (angle >= -270) _rotation -= 270;
+            }
+            if (angle != 0)
+            {
+                if (_rotation >= 360) _rotation -= 360;
+                else if (_rotation < 0) _rotation += 360;
+            }
+        }
 
-			if (_applyLut && lut != null && !lut.IsValid) {
-				lut.Recalculate();
-				render = true;
-			}
+        /// <inheritdoc />
+        public void FlipX()
+        {
+            _flipX = !_flipX;
+        }
 
-			if (_bitmapSource == null || render) {
-				_pixels = new PinnedIntArray(ScaledData.Width * ScaledData.Height);
+        /// <inheritdoc />
+        public void FlipY()
+        {
+            _flipY = !_flipY;
+        }
 
-				ScaledData.Render((_applyLut ? lut : null), _pixels.Data);
+        /// <inheritdoc />
+        public void Transform(double scale, int rotation, bool flipx, bool flipy)
+        {
+            Scale(scale);
+            Rotate(rotation);
+            _flipX = flipx;
+            _flipY = flipy;
+        }
 
-				foreach (var overlay in _overlays) {
-					overlay.Render(_pixels.Data, ScaledData.Width, ScaledData.Height);
-				}
+        /// <inheritdoc />
+        public IImage RenderImage(ILUT lut)
+        {
+            if (_applyLut && lut != null && !lut.IsValid)
+            {
+                lut.Recalculate();
+            }
 
-				_bitmapSource = RenderBitmapSource(ScaledData.Width, ScaledData.Height, _pixels.Data);
-			}
+            var image = ImageManager.CreateImage(ScaledWidth, ScaledHeight);
 
-			if (_rotation != 0 || _flipX || _flipY) {
-				TransformGroup rotFlipTransform = new TransformGroup();
-				rotFlipTransform.Children.Add(new RotateTransform(_rotation));
-				rotFlipTransform.Children.Add(new ScaleTransform(_flipX ? -1 : 1, _flipY ? -1 : 1));
-				_bitmapSource = new TransformedBitmap(_bitmapSource, rotFlipTransform);
-			}
+            var pixels = image.Pixels.Data;
+            ScaledData.Render(_applyLut ? lut : null, pixels);
 
-			return _bitmapSource;
-		}
+            foreach (var overlay in _overlays)
+            {
+                overlay.Render(pixels, ScaledWidth, ScaledHeight);
+            }
 
-		private static BitmapSource RenderBitmapSource(int iWidth, int iHeight, int[] iPixelData) {
-			var bitmap = new WriteableBitmap(iWidth, iHeight, DPI, DPI, PixelFormats.Bgr32, null);
+            image.Render(Components, _flipX, _flipY, _rotation);
 
-			// Reserve the back buffer for updates.
-			bitmap.Lock();
+            return image;
+        }
 
-			Marshal.Copy(iPixelData, 0, bitmap.BackBuffer, iPixelData.Length);
-
-			// Specify the area of the bitmap that changed.
-			bitmap.AddDirtyRect(new Int32Rect(0, 0, (int)bitmap.Width, (int)bitmap.Height));
-
-			// Release the back buffer and make it available for display.
-			bitmap.Unlock();
-
-			return bitmap;
-		}
-
-		public Image RenderImage(ILUT lut) {
-			bool render = false;
-
-			if (_bitmap == null) {
-				System.Drawing.Imaging.PixelFormat format = Components == 4 
-					? System.Drawing.Imaging.PixelFormat.Format32bppArgb 
-					: System.Drawing.Imaging.PixelFormat.Format32bppRgb;
-				_pixels = new PinnedIntArray(ScaledData.Width * ScaledData.Height);
-				_bitmap = new Bitmap(ScaledData.Width, ScaledData.Height, ScaledData.Width * 4, format, _pixels.Pointer);
-				render = true;
-			}
-
-			if (_applyLut && lut != null && !lut.IsValid) {
-				lut.Recalculate();
-				render = true;
-			}
-
-			_bitmap.RotateFlip(RotateFlipType.RotateNoneFlipNone);
-
-			if (render) {
-				ScaledData.Render((_applyLut ? lut : null), _pixels.Data);
-
-				foreach (var overlay in _overlays) {
-					overlay.Render(_pixels.Data, ScaledData.Width, ScaledData.Height);
-				}
-			}
-
-			_bitmap.RotateFlip(GetRotateFlipType());
-
-			return _bitmap;
-		}
-
-		protected RotateFlipType GetRotateFlipType() {
-			if (_flipX && _flipY) {
-				switch (_rotation) {
-				case  90: return RotateFlipType.Rotate90FlipXY;
-				case 180: return RotateFlipType.Rotate180FlipXY;
-				case 270: return RotateFlipType.Rotate270FlipXY;
-				default: return RotateFlipType.RotateNoneFlipXY;
-				}
-			} else if (_flipX) {
-				switch (_rotation) {
-				case  90: return RotateFlipType.Rotate90FlipX;
-				case 180: return RotateFlipType.Rotate180FlipX;
-				case 270: return RotateFlipType.Rotate270FlipX;
-				default: return RotateFlipType.RotateNoneFlipX;
-				}
-			} else if (_flipY) {
-				switch (_rotation) {
-				case  90: return RotateFlipType.Rotate90FlipY;
-				case 180: return RotateFlipType.Rotate180FlipY;
-				case 270: return RotateFlipType.Rotate270FlipY;
-				default: return RotateFlipType.RotateNoneFlipY;
-				}
-			} else {
-				switch (_rotation) {
-				case  90: return RotateFlipType.Rotate90FlipNone;
-				case 180: return RotateFlipType.Rotate180FlipNone;
-				case 270: return RotateFlipType.Rotate270FlipNone;
-				default: return RotateFlipType.RotateNoneFlipNone;
-				}
-			}
-		}
-#endif
-		#endregion
-	}
+        #endregion
+    }
 }

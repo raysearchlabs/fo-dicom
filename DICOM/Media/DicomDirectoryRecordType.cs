@@ -1,61 +1,71 @@
-﻿using System;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
-namespace Dicom.Media {
-	public class DicomDirectoryRecordType {
-		#region Properties and Attributes
-		private readonly string _recordName;
-		private readonly ICollection<DicomTag> _tags = new HashSet<DicomTag>();
+namespace Dicom.Media
+{
+    public class DicomDirectoryRecordType
+    {
+        #region Properties and Attributes
 
-		public ICollection<DicomTag> Tags { get { return _tags; } }
+        private readonly string _recordName;
 
-		public readonly static DicomDirectoryRecordType Patient = new DicomDirectoryRecordType("PATIENT");
-		public readonly static DicomDirectoryRecordType Study = new DicomDirectoryRecordType("STUDY");
-		public readonly static DicomDirectoryRecordType Series = new DicomDirectoryRecordType("SERIES");
-		public readonly static DicomDirectoryRecordType Image = new DicomDirectoryRecordType("IMAGE");
+        public ICollection<DicomTag> Tags { get; } = new HashSet<DicomTag>();
 
-		#endregion
+        public static readonly DicomDirectoryRecordType Patient = new DicomDirectoryRecordType("PATIENT");
 
-		#region Initialization
-		public DicomDirectoryRecordType(string recordName) {
-			_recordName = recordName;
+        public static readonly DicomDirectoryRecordType Study = new DicomDirectoryRecordType("STUDY");
 
-			switch (recordName) {
-			case "PATIENT":
-				_tags.Add(DicomTag.PatientID);
-				_tags.Add(DicomTag.PatientName);
-				_tags.Add(DicomTag.PatientBirthDate);
-				_tags.Add(DicomTag.PatientSex);
-				break;
-			case "STUDY":
-				_tags.Add(DicomTag.StudyInstanceUID);
-				_tags.Add(DicomTag.StudyID);
-				_tags.Add(DicomTag.StudyDate);
-				_tags.Add(DicomTag.StudyTime);
-				_tags.Add(DicomTag.AccessionNumber);
-				_tags.Add(DicomTag.StudyDescription);
-				break;
-			case "SERIES":
-				_tags.Add(DicomTag.SeriesInstanceUID);
-				_tags.Add(DicomTag.Modality);
-				_tags.Add(DicomTag.SeriesDate);
-				_tags.Add(DicomTag.SeriesTime);
-				_tags.Add(DicomTag.SeriesNumber);
-				_tags.Add(DicomTag.SeriesDescription);
-				break;
-			case "IMAGE":
-				_tags.Add(DicomTag.InstanceNumber);
-				break;
-			default:
-				break;
-			}
-		}
-		#endregion
+        public static readonly DicomDirectoryRecordType Series = new DicomDirectoryRecordType("SERIES");
 
-		public override string ToString() {
-			return _recordName;
-		}
-	}
+        public static readonly DicomDirectoryRecordType Image = new DicomDirectoryRecordType("IMAGE");
+
+        #endregion
+
+        #region Initialization
+
+        public DicomDirectoryRecordType(string recordName)
+        {
+            _recordName = recordName;
+
+            switch (recordName)
+            {
+                case "PATIENT":
+                    Tags.Add(DicomTag.PatientID);
+                    Tags.Add(DicomTag.PatientName);
+                    Tags.Add(DicomTag.PatientBirthDate);
+                    Tags.Add(DicomTag.PatientSex);
+                    break;
+                case "STUDY":
+                    Tags.Add(DicomTag.StudyInstanceUID);
+                    Tags.Add(DicomTag.StudyID);
+                    Tags.Add(DicomTag.StudyDate);
+                    Tags.Add(DicomTag.StudyTime);
+                    Tags.Add(DicomTag.AccessionNumber);
+                    Tags.Add(DicomTag.StudyDescription);
+                    break;
+                case "SERIES":
+                    Tags.Add(DicomTag.SeriesInstanceUID);
+                    Tags.Add(DicomTag.Modality);
+                    Tags.Add(DicomTag.SeriesDate);
+                    Tags.Add(DicomTag.SeriesTime);
+                    Tags.Add(DicomTag.SeriesNumber);
+                    Tags.Add(DicomTag.SeriesDescription);
+                    break;
+                case "IMAGE":
+                    Tags.Add(DicomTag.InstanceNumber);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        #endregion
+
+        public override string ToString()
+        {
+            return _recordName;
+        }
+    }
 }

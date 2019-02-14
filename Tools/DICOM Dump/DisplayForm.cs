@@ -1,218 +1,247 @@
-﻿using System;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
+using System;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 
-using Dicom;
 using Dicom.Imaging;
-using Dicom.Imaging.Render;
 
-namespace Dicom.Dump {
-	public partial class DisplayForm : Form {
-		private DicomFile _file;
-		private DicomImage _image;
-		private bool _grayscale;
-		private double _windowWidth;
-		private double _windowCenter;
-		private int _frame;
+namespace Dicom.Dump
+{
+    public partial class DisplayForm : Form
+    {
+        private readonly DicomFile _file;
 
-		public DisplayForm(DicomFile file) {
-			_file = file;
-			InitializeComponent();
-		}
+        private DicomImage _image;
 
-		protected override void OnLoad(EventArgs e) {
-			// execute on ThreadPool to avoid STA WaitHandle.WaitAll exception
-			ThreadPool.QueueUserWorkItem(delegate(object s) {
-				try {
-					_image = new DicomImage(_file.Dataset);
-					_grayscale = !_image.PhotometricInterpretation.IsColor;
-					if (_grayscale) {
-						_windowWidth = _image.WindowWidth;
-						_windowCenter = _image.WindowCenter;
-					}
-					_frame = 0;
-					Invoke(new WaitCallback(SizeForImage), _image);
-					Invoke(new WaitCallback(DisplayImage), _image);
-				} catch (Exception ex) {
-					OnException(ex);
-				}
-			                             });
-			
-		}
+        private bool _grayscale;
 
-		private delegate void ExceptionHandler(Exception e);
+        private double _windowWidth;
 
-		protected void OnException(Exception e) {
-			if (InvokeRequired) {
-				BeginInvoke(new ExceptionHandler(OnException), e);
-				return;
-			}
+        private double _windowCenter;
 
-			MessageBox.Show(this, e.Message, "Image Render Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
-			Close();
-		}
+        private int _frame;
 
-		protected void DisplayImage(object state) {
-			try {
-				var image = (DicomImage)state;
+        private Image _current;
 
-				pbDisplay.Image = image.RenderImage(_frame);
+        private Image _previous;
 
-				if (_grayscale)
-					Text = String.Format("DICOM Image Display [scale: {0}, wc: {1}, ww: {2}]", Math.Round(image.Scale, 1), image.WindowCenter, image.WindowWidth);
-				else
-					Text = String.Format("DICOM Image Display [scale: {0}]", Math.Round(image.Scale, 1));
-			} catch (Exception e) {
-				OnException(e);
-			}
-		}
+        public DisplayForm(DicomFile file)
+        {
+            _file = file;
+            InitializeComponent();
+        }
 
-		protected void SizeForImage(object state) {
-			var image = (DicomImage)state;
+        protected override void OnLoad(EventArgs e)
+        {
+            // execute on ThreadPool to avoid STA WaitHandle.WaitAll exception
+            ThreadPool.QueueUserWorkItem(
+                delegate
+                {
+                    try
+                    {
+                        _image = new DicomImage(_file.Dataset);
+                        _grayscale = _image.IsGrayscale;
+                        if (_grayscale)
+                        {
+                            _windowWidth = _image.WindowWidth;
+                            _windowCenter = _image.WindowCenter;
+                        }
+                        _frame = 0;
+                        Invoke(new WaitCallback(SizeForImage), _image);
+                        Invoke(new WaitCallback(DisplayImage), _image);
+                    }
+                    catch (Exception ex)
+                    {
+                        OnException(ex);
+                    }
+               });
+        }
 
-			Size max = SystemInformation.WorkingArea.Size;
+        private delegate void ExceptionHandler(Exception e);
 
-			int maxW = max.Width - (Width - pbDisplay.Width);
-			int maxH = max.Height - (Height - pbDisplay.Height);
+        protected void OnException(Exception e)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new ExceptionHandler(OnException), e);
+                return;
+            }
 
-			if (image.Width > maxW || image.Height > maxH)
-				image.Scale = Math.Min((double)maxW / (double)image.Width, (double)maxH / (double)image.Height);
-			else
-				image.Scale = 1.0;
+            MessageBox.Show(this, (e.InnerException ?? e).Message, "Image Render Exception", MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            Close();
+        }
 
-			Width = (int)(image.Width * image.Scale) + (Width - pbDisplay.Width);
-			Height = (int)(image.Height * image.Scale) + (Height - pbDisplay.Height);
+        protected void DisplayImage(object state)
+        {
+            try
+            {
+                var image = (DicomImage)state;
 
-			if (Width >= (max.Width * 0.99) || Height >= (max.Height * 0.99))
-				CenterToScreen(); // center very large images on the screen
-			else {
-				CenterToParent();
-				if (Bottom > max.Height)
-					Top -= Bottom - max.Height;
-				if (Top < 0)
-					Top = 0;
-				if (Right > max.Width)
-					Left -= Right - max.Width;
-				if (Left < 0)
-					Left = 0;
-			}
-		}
+                _previous = pbDisplay.Image;
+                pbDisplay.Image = null;
+                _current = image.RenderImage(_frame).Clone().AsBitmap();
+                pbDisplay.Image = _current;
 
-		private bool _dragging = false;
-		private Point _lastPosition = Point.Empty;
+                Text = _grayscale
+                    ? $"DICOM Image Display [scale: {Math.Round(image.Scale, 1)}, wc: {image.WindowCenter}, ww: {image.WindowWidth}]"
+                    : $"DICOM Image Display [scale: {Math.Round(image.Scale, 1)}]";
+            }
+            catch (Exception e)
+            {
+                OnException(e);
+            }
+        }
 
-		private void OnMouseDown(object sender, MouseEventArgs e) {
-			if (!_grayscale)
-				return;
+        protected void SizeForImage(object state)
+        {
+            var image = (DicomImage)state;
 
-			_lastPosition = e.Location;
-			_dragging = true;
-		}
+            var max = SystemInformation.WorkingArea.Size;
 
-		private void OnMouseUp(object sender, MouseEventArgs e) {
-			_dragging = false;
-		}
+            var maxW = max.Width - (Width - pbDisplay.Width);
+            var maxH = max.Height - (Height - pbDisplay.Height);
 
-		private void OnMouseLeave(object sender, EventArgs e) {
-			_dragging = false;
-		}
+            if (image.Width > maxW || image.Height > maxH) image.Scale = Math.Min((double)maxW / image.Width, (double)maxH / image.Height);
+            else image.Scale = 1.0;
 
-		private void OnMouseMove(object sender, MouseEventArgs e) {
-			if (!_dragging)
-				return;
+            Width = (int)(image.Width * image.Scale) + (Width - pbDisplay.Width);
+            Height = (int)(image.Height * image.Scale) + (Height - pbDisplay.Height);
 
-			_image.WindowWidth += e.X - _lastPosition.X;
-			_image.WindowCenter += e.Y - _lastPosition.Y;
+            if (Width >= (max.Width * 0.99) || Height >= (max.Height * 0.99)) CenterToScreen(); // center very large images on the screen
+            else
+            {
+                CenterToParent();
+                if (Bottom > max.Height) Top -= Bottom - max.Height;
+                if (Top < 0) Top = 0;
+                if (Right > max.Width) Left -= Right - max.Width;
+                if (Left < 0) Left = 0;
+            }
+        }
 
-			_lastPosition = e.Location;
+        private bool _dragging = false;
 
-			DisplayImage(_image);
-		}
+        private Point _lastPosition = Point.Empty;
 
-		private void OnMouseDoubleClick(object sender, MouseEventArgs e) {
-			if (e.Button == MouseButtons.Left) {
-				_image.WindowCenter = _windowCenter;
-				_image.WindowWidth = _windowWidth;
-			}
-			
-			DisplayImage(_image);
-		}
+        private void OnMouseDown(object sender, MouseEventArgs e)
+        {
+            if (!_grayscale) return;
 
-		private void OnKeyUp(object sender, KeyEventArgs e) {
-			if (e.KeyCode == Keys.Right) {
-				_frame++;
-				if (_frame >= _image.NumberOfFrames)
-					_frame--;
-				DisplayImage(_image);
-				return;
-			}
+            _lastPosition = e.Location;
+            _dragging = true;
+        }
 
-			if (e.KeyCode == Keys.Left) {
-				_frame--;
-				if (_frame < 0)
-					_frame++;
-				DisplayImage(_image);
-				return;
-			}
+        private void OnMouseUp(object sender, MouseEventArgs e)
+        {
+            _dragging = false;
+        }
 
-			if (e.KeyCode == Keys.O) {
-				_image.ShowOverlays = !_image.ShowOverlays;
-				DisplayImage(_image);
-				return;
-			}
+        private void OnMouseLeave(object sender, EventArgs e)
+        {
+            _dragging = false;
+        }
 
-			GrayscaleRenderOptions options = null;
+        private void OnMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_dragging) return;
 
-			if (e.KeyCode == Keys.D0)
-				options = GrayscaleRenderOptions.FromDataset(_image.Dataset);
-			else if (e.KeyCode == Keys.D1)
-				options = GrayscaleRenderOptions.FromWindowLevel(_image.Dataset);
-			else if (e.KeyCode == Keys.D2)
-				options = GrayscaleRenderOptions.FromImagePixelValueTags(_image.Dataset);
-			else if (e.KeyCode == Keys.D3)
-				options = GrayscaleRenderOptions.FromMinMax(_image.Dataset);
-			else if (e.KeyCode == Keys.D4)
-				options = GrayscaleRenderOptions.FromBitRange(_image.Dataset);
-			else if (e.KeyCode == Keys.D5)
-				options = GrayscaleRenderOptions.FromHistogram(_image.Dataset, 90);
+            _image.WindowWidth += e.X - _lastPosition.X;
+            _image.WindowCenter += e.Y - _lastPosition.Y;
 
-			if (options != null) {
-				_image.WindowWidth = options.WindowWidth;
-				_image.WindowCenter = options.WindowCenter;
+            _lastPosition = e.Location;
 
-				DisplayImage(_image);
-			}
-		}
+            DisplayImage(_image);
+        }
 
-		private void OnClientSizeChanged(object sender, EventArgs e) {
-			var image = _image;
-			if (image == null || pbDisplay.Image == null)
-				return;
+        private void OnMouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                _image.WindowCenter = _windowCenter;
+                _image.WindowWidth = _windowWidth;
+            }
 
-			if (WindowState == FormWindowState.Normal) {
-				if (pbDisplay.Width > pbDisplay.Height) {
-					if (image.Width > image.Height)
-						image.Scale = (double)pbDisplay.Height / (double)image.Height;
-					else
-						image.Scale = (double)pbDisplay.Width / (double)image.Width;
-				} else {
-					if (image.Width > image.Height)
-						image.Scale = (double)pbDisplay.Width / (double)image.Width;
-					else
-						image.Scale = (double)pbDisplay.Height / (double)image.Height;
-				}
+            DisplayImage(_image);
+        }
 
-				// scale viewing window to match rescaled image size
-				Width = (int)(image.Width * image.Scale) + (Width - pbDisplay.Width);
-				Height = (int)(image.Height * image.Scale) + (Height - pbDisplay.Height);
-			}
+        private void OnKeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Right)
+            {
+                _frame++;
+                if (_frame >= _image.NumberOfFrames) _frame--;
+                DisplayImage(_image);
+                return;
+            }
 
-			if (WindowState == FormWindowState.Maximized) {
-				image.Scale = Math.Min((double)pbDisplay.Width / (double)image.Width, (double)pbDisplay.Height / (double)image.Height);
-			}
+            if (e.KeyCode == Keys.Left)
+            {
+                _frame--;
+                if (_frame < 0) _frame++;
+                DisplayImage(_image);
+                return;
+            }
 
-			DisplayImage(image);
-		}
-	}
+            if (e.KeyCode == Keys.O)
+            {
+                _image.ShowOverlays = !_image.ShowOverlays;
+                DisplayImage(_image);
+                return;
+            }
+
+            if (!_image.IsGrayscale) return;
+            GrayscaleRenderOptions options = null;
+
+            if (e.KeyCode == Keys.D0) options = GrayscaleRenderOptions.FromDataset(_file.Dataset);
+            else if (e.KeyCode == Keys.D1) options = GrayscaleRenderOptions.FromWindowLevel(_file.Dataset);
+            else if (e.KeyCode == Keys.D2) options = GrayscaleRenderOptions.FromImagePixelValueTags(_file.Dataset);
+            else if (e.KeyCode == Keys.D3) options = GrayscaleRenderOptions.FromMinMax(_file.Dataset);
+            else if (e.KeyCode == Keys.D4) options = GrayscaleRenderOptions.FromBitRange(_file.Dataset);
+            else if (e.KeyCode == Keys.D5) options = GrayscaleRenderOptions.FromHistogram(_file.Dataset, 90);
+
+            if (options != null)
+            {
+                _image.WindowWidth = options.WindowWidth;
+                _image.WindowCenter = options.WindowCenter;
+
+                DisplayImage(_image);
+            }
+        }
+
+        private void OnClientSizeChanged(object sender, EventArgs e)
+        {
+            var image = _image;
+            if (image == null || pbDisplay.Image == null) return;
+
+            if (WindowState == FormWindowState.Normal)
+            {
+                if (pbDisplay.Width > pbDisplay.Height)
+                {
+                    if (image.Width > image.Height) image.Scale = (double)pbDisplay.Height / image.Height;
+                    else image.Scale = (double)pbDisplay.Width / image.Width;
+                }
+                else
+                {
+                    if (image.Width > image.Height) image.Scale = (double)pbDisplay.Width / image.Width;
+                    else image.Scale = (double)pbDisplay.Height / image.Height;
+                }
+
+                // scale viewing window to match rescaled image size
+                Width = (int)(image.Width * image.Scale) + (Width - pbDisplay.Width);
+                Height = (int)(image.Height * image.Scale) + (Height - pbDisplay.Height);
+            }
+
+            if (WindowState == FormWindowState.Maximized)
+            {
+                image.Scale = Math.Min(
+                    (double)pbDisplay.Width / image.Width,
+                    (double)pbDisplay.Height / image.Height);
+            }
+
+            DisplayImage(image);
+        }
+    }
 }

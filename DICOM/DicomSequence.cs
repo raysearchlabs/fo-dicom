@@ -1,28 +1,44 @@
-﻿using System;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
 using System.Collections.Generic;
 
-namespace Dicom {
-	public class DicomSequence : DicomItem, IEnumerable<DicomDataset> {
-		private IList<DicomDataset> _items;
+namespace Dicom
+{
+    /// <summary>
+    /// Representation of a DICOM sequence of items.
+    /// </summary>
+    public class DicomSequence : DicomItem, IEnumerable<DicomDataset>
+    {
+        /// <summary>
+        /// Initializes an instance of the <see cref="DicomSequence"/> class.
+        /// </summary>
+        /// <param name="tag">DICOM sequence tag.</param>
+        /// <param name="items">Dataset items constituting the sequence.</param>
+        public DicomSequence(DicomTag tag, params DicomDataset[] items)
+            : base(tag)
+        {
+            Items = new List<DicomDataset>(items);
+        }
 
-		public DicomSequence(DicomTag tag, params DicomDataset[] items) : base(tag) {
-			_items = new List<DicomDataset>(items);
-		}
+        /// <inheritdoc />
+        public override DicomVR ValueRepresentation => DicomVR.SQ;
 
-		public override DicomVR ValueRepresentation {
-			get { return DicomVR.SQ; }
-		}
+        /// <summary>
+        /// Gets the dataset items constituting the sequence.
+        /// </summary>
+        public IList<DicomDataset> Items { get; }
 
-		public IList<DicomDataset> Items {
-			get { return _items; }
-		}
+        /// <inheritdoc />
+        public IEnumerator<DicomDataset> GetEnumerator()
+        {
+            return Items.GetEnumerator();
+        }
 
-		public IEnumerator<DicomDataset> GetEnumerator() {
-			return _items.GetEnumerator();
-		}
-
-		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() {
-			return _items.GetEnumerator();
-		}
-	}
+        /// <inheritdoc />
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return Items.GetEnumerator();
+        }
+    }
 }

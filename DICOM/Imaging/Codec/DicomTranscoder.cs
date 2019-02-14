@@ -1,307 +1,302 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-#if !NETFX_CORE && !SILVERLIGHT
-using System.ComponentModel.Composition.Hosting;
-#endif
-using System.Linq;
-using System.Reflection;
+using System;
+using System.Collections.Generic;
+
 using Dicom.Imaging.Render;
-using Dicom.IO;
 using Dicom.IO.Buffer;
 using Dicom.IO.Writer;
-using Dicom.Log;
 
-namespace Dicom.Imaging.Codec {
-	public class DicomTranscoder {
-		#region Static
-		private static Dictionary<DicomTransferSyntax,IDicomCodec> _codecs = new Dictionary<DicomTransferSyntax,IDicomCodec>();
+namespace Dicom.Imaging.Codec
+{
+    /// <summary>
+    /// Generic DICOM transcoder.
+    /// </summary>
+    public class DicomTranscoder : IDicomTranscoder
+    {
+        #region FIELDS
 
-		static DicomTranscoder() {
-			LoadCodecs(null, "Dicom.Native*.dll");
-		}
+        private readonly Lazy<IDicomCodec> _inputCodec;
 
-		public static IDicomCodec GetCodec(DicomTransferSyntax syntax) {
-			IDicomCodec codec = null;
-			if (!_codecs.TryGetValue(syntax, out codec))
-				throw new DicomCodecException("No codec registered for tranfer syntax: {0}", syntax);
-			return codec;
-		}
+        private readonly Lazy<IDicomCodec> _outputCodec;
 
-#if NETFX_CORE || SILVERLIGHT
-		public static void LoadCodecs(Assembly assembly = null, string overwriteIfEmpty = null)
-		{
-			if (assembly == null)
-				assembly = typeof(IDicomCodec).GetTypeInfo().Assembly;
-			var types =
-				assembly.DefinedTypes.Where(
-					ti => ti.IsClass && !ti.IsAbstract && ti.ImplementedInterfaces.Contains(typeof(IDicomCodec)));
+        #endregion
 
-			var notOverwrite = !String.IsNullOrEmpty(overwriteIfEmpty);
-			foreach (var ti in types)
-			{
-				var codec = (IDicomCodec)Activator.CreateInstance(ti.AsType());
-				if (notOverwrite)
-				{
-					IDicomCodec codecInDict;
-					if (_codecs.TryGetValue(codec.TransferSyntax, out codecInDict))
-						throw new DicomCodecException("Non-overwrite mode, attempt to overwrite codec already in dictionary");
-				}
-				_codecs[codec.TransferSyntax] = codec;
-			}
-		}
-#else
-		public static void LoadCodecs(string path = null, string search = null) {
-			if (path == null)
-				path = Path.GetDirectoryName(new Uri(Assembly.GetExecutingAssembly().CodeBase).LocalPath);
+        #region CONSTRUCTORS
 
-			var log = LogManager.Default.GetLogger("Dicom.Imaging.Codec");
+        /// <summary>
+        /// Initializes an instance of <see cref="DicomTranscoder"/>.
+        /// </summary>
+        /// <param name="inputSyntax">Input transfer syntax.</param>
+        /// <param name="outputSyntax">Output transfer syntax.</param>
+        /// <param name="inputCodecParams">Input codec parameters.</param>
+        /// <param name="outputCodecParams">Output codec parameters.</param>
+        public DicomTranscoder(
+            DicomTransferSyntax inputSyntax,
+            DicomTransferSyntax outputSyntax,
+            DicomCodecParams inputCodecParams = null,
+            DicomCodecParams outputCodecParams = null)
+        {
+            InputSyntax = inputSyntax;
+            OutputSyntax = outputSyntax;
+            InputCodecParams = inputCodecParams ?? DefaultInputCodecParams(inputSyntax);
+            OutputCodecParams = outputCodecParams;
 
-			var catalog = (search == null) ?
-				new DirectoryCatalog(path) :
-				new DirectoryCatalog(path, search);
-			var container = new CompositionContainer(catalog);
-			foreach (var lazy in container.GetExports<IDicomCodec>()) {
-				var codec = lazy.Value;
-				log.Debug("Codec: {0}", codec.TransferSyntax.UID.Name);
-				_codecs[codec.TransferSyntax] = codec;
-			}
-		}
-#endif
-		#endregion
+            _inputCodec = new Lazy<IDicomCodec>(() => InitializeCodec(InputSyntax));
+            _outputCodec = new Lazy<IDicomCodec>(() => InitializeCodec(OutputSyntax));
+        }
 
-		public DicomTranscoder(DicomTransferSyntax input, DicomTransferSyntax output) {
-			InputSyntax = input;
-			OutputSyntax = output;
-		}
+        #endregion
 
-		public DicomTransferSyntax InputSyntax {
-			get;
-			private set;
-		}
+        #region PROPERTIES
 
-		public DicomCodecParams InputCodecParams {
-			get;
-			set;
-		}
+        /// <inheritdoc />
+        public DicomTransferSyntax InputSyntax { get; }
 
-		private IDicomCodec _inputCodec;
-		private IDicomCodec InputCodec {
-			get {
-				if (InputSyntax.IsEncapsulated && _inputCodec == null)
-					_inputCodec = GetCodec(InputSyntax);
-				return _inputCodec;
-			}
-		}
+        /// <inheritdoc />
+        public DicomCodecParams InputCodecParams { get; }
 
-		public DicomTransferSyntax OutputSyntax {
-			get;
-			private set;
-		}
+        private IDicomCodec InputCodec => _inputCodec.Value;
 
-		public DicomCodecParams OutputCodecParams {
-			get;
-			set;
-		}
+        /// <inheritdoc />
+        public DicomTransferSyntax OutputSyntax { get; }
 
-		private IDicomCodec _outputCodec;
-		private IDicomCodec OutputCodec {
-			get {
-				if (OutputSyntax.IsEncapsulated && _outputCodec == null)
-					_outputCodec = GetCodec(OutputSyntax);
-				return _outputCodec;
-			}
-		}
+        /// <inheritdoc />
+        public DicomCodecParams OutputCodecParams { get; }
 
-		public DicomFile Transcode(DicomFile file) {
-			DicomFile f = new DicomFile();
-			f.FileMetaInfo.Add(file.FileMetaInfo);
-			f.FileMetaInfo.TransferSyntax = OutputSyntax;
-			f.Dataset.InternalTransferSyntax = OutputSyntax;
-			f.Dataset.Add(Transcode(file.Dataset));
-			return f;
-		}
+        private IDicomCodec OutputCodec => _outputCodec.Value;
 
-		public DicomDataset Transcode(DicomDataset dataset) {
-			if (!dataset.Contains(DicomTag.PixelData)) {
-				var newDataset = dataset.Clone();
-				newDataset.InternalTransferSyntax = OutputSyntax;
-				newDataset.RecalculateGroupLengths(false);
-				return newDataset;
-			}
+        #endregion
 
-			if (!InputSyntax.IsEncapsulated && !OutputSyntax.IsEncapsulated) {
-				// transcode from uncompressed to uncompressed
-				var newDataset = dataset.Clone();
-				newDataset.InternalTransferSyntax = OutputSyntax;
+        #region METHODS
 
-				var oldPixelData = DicomPixelData.Create(dataset, false);
-				var newPixelData = DicomPixelData.Create(newDataset, true);
+        public static DicomDataset ExtractOverlays(DicomDataset dataset)
+        {
+            if (!DicomOverlayData.HasEmbeddedOverlays(dataset)) return dataset;
 
-				for (int i = 0; i < oldPixelData.NumberOfFrames; i++) {
-					var frame = oldPixelData.GetFrame(i);
-					newPixelData.AddFrame(frame);
-				}
+            dataset = dataset.Clone();
 
-				ProcessOverlays(dataset, newDataset);
+            var input = dataset;
+            if (input.InternalTransferSyntax.IsEncapsulated) input = input.Clone(DicomTransferSyntax.ExplicitVRLittleEndian);
 
-				newDataset.RecalculateGroupLengths(false);
+            ProcessOverlays(input, dataset);
 
-				return newDataset;
-			}
+            return dataset;
+        }
 
-			if (InputSyntax.IsEncapsulated && OutputSyntax.IsEncapsulated) {
-				// transcode from compressed to compressed
-				var temp = Decode(dataset, DicomTransferSyntax.ExplicitVRLittleEndian, InputCodec, InputCodecParams);
-				return Encode(temp, OutputSyntax, OutputCodec, OutputCodecParams);
-			}
+        /// <inheritdoc />
+        public DicomFile Transcode(DicomFile file)
+        {
+            var f = new DicomFile();
+            f.FileMetaInfo.Add(file.FileMetaInfo);
+            f.FileMetaInfo.TransferSyntax = OutputSyntax;
+            f.Dataset.InternalTransferSyntax = OutputSyntax;
+            f.Dataset.Add(Transcode(file.Dataset));
+            return f;
+        }
 
-			if (InputSyntax.IsEncapsulated) {
-				// transcode from compressed to uncompressed
-				return Decode(dataset, OutputSyntax, InputCodec, InputCodecParams);
-			}
+        /// <inheritdoc />
+        public DicomDataset Transcode(DicomDataset dataset)
+        {
+            if (!dataset.Contains(DicomTag.PixelData))
+            {
+                var newDataset = dataset.Clone();
+                newDataset.InternalTransferSyntax = OutputSyntax;
+                newDataset.RecalculateGroupLengths(false);
+                return newDataset;
+            }
 
-			if (OutputSyntax.IsEncapsulated) {
-				// transcode from uncompressed to compressed
-				return Encode(dataset, OutputSyntax, OutputCodec, OutputCodecParams);
-			}
+            if (!InputSyntax.IsEncapsulated && !OutputSyntax.IsEncapsulated)
+            {
+                // transcode from uncompressed to uncompressed
+                var newDataset = dataset.Clone();
+                newDataset.InternalTransferSyntax = OutputSyntax;
 
-			throw new DicomCodecException("Unable to find transcoding solution for {0} to {1}", InputSyntax.UID.Name, OutputSyntax.UID.Name);
-		}
+                var oldPixelData = DicomPixelData.Create(dataset, false);
+                var newPixelData = DicomPixelData.Create(newDataset, true);
 
-		/// <summary>
-		/// Decompress single frame from DICOM dataset and return uncompressed frame buffer.
-		/// </summary>
-		/// <param name="dataset">DICOM dataset</param>
-		/// <param name="frame">Frame number</param>
-		/// <returns>Uncompressed frame buffer</returns>
-		public IByteBuffer DecodeFrame(DicomDataset dataset, int frame) {
-			var pixelData = DicomPixelData.Create(dataset, false);
-			var buffer = pixelData.GetFrame(frame);
+                for (int i = 0; i < oldPixelData.NumberOfFrames; i++)
+                {
+                    var frame = oldPixelData.GetFrame(i);
+                    newPixelData.AddFrame(frame);
+                }
 
-			// is pixel data already uncompressed?
-			if (!dataset.InternalTransferSyntax.IsEncapsulated)
-				return buffer;
+                ProcessOverlays(dataset, newDataset);
 
-			// clone dataset to prevent changes to source
-			var cloneDataset = dataset.Clone();
+                newDataset.RecalculateGroupLengths(false);
 
-			var oldPixelData = DicomPixelData.Create(cloneDataset, true);
-			oldPixelData.AddFrame(buffer);
+                return newDataset;
+            }
 
-			var newDataset = Decode(cloneDataset, OutputSyntax, InputCodec, InputCodecParams);
-			var newPixelData = DicomPixelData.Create(newDataset, false);
+            if (InputSyntax.IsEncapsulated && OutputSyntax.IsEncapsulated)
+            {
+                // transcode from compressed to compressed
+                var temp = Decode(dataset, DicomTransferSyntax.ExplicitVRLittleEndian, InputCodec, InputCodecParams);
+                return Encode(temp, OutputSyntax, OutputCodec, OutputCodecParams);
+            }
 
-			return newPixelData.GetFrame(0);
-		}
+            if (InputSyntax.IsEncapsulated)
+            {
+                // transcode from compressed to uncompressed
+                return Decode(dataset, OutputSyntax, InputCodec, InputCodecParams);
+            }
 
-		public IPixelData DecodePixelData(DicomDataset dataset, int frame) {
-			var pixelData = DicomPixelData.Create(dataset, false);
-			
-			// is pixel data already uncompressed?
-			if (!dataset.InternalTransferSyntax.IsEncapsulated)
-				return PixelDataFactory.Create(pixelData, frame);
+            if (OutputSyntax.IsEncapsulated)
+            {
+                // transcode from uncompressed to compressed
+                return Encode(dataset, OutputSyntax, OutputCodec, OutputCodecParams);
+            }
 
-			var buffer = pixelData.GetFrame(frame);
+            throw new DicomCodecException(
+                "Unable to find transcoding solution for {0} to {1}",
+                InputSyntax.UID.Name,
+                OutputSyntax.UID.Name);
+        }
 
-			// clone dataset to prevent changes to source
-			var cloneDataset = dataset.Clone();
+        /// <inheritdoc />
+        public IByteBuffer DecodeFrame(DicomDataset dataset, int frame)
+        {
+            var pixelData = DicomPixelData.Create(dataset);
+            var buffer = pixelData.GetFrame(frame);
 
-			var oldPixelData = DicomPixelData.Create(cloneDataset, true);
-			oldPixelData.AddFrame(buffer);
+            // is pixel data already uncompressed?
+            if (!dataset.InternalTransferSyntax.IsEncapsulated) return buffer;
 
-			var newDataset = Decode(cloneDataset, OutputSyntax, InputCodec, InputCodecParams);
-			var newPixelData = DicomPixelData.Create(newDataset, false);
+            // clone dataset to prevent changes to source
+            var cloneDataset = dataset.Clone();
 
-			return PixelDataFactory.Create(newPixelData, 0);
-		}
+            var oldPixelData = DicomPixelData.Create(cloneDataset, true);
+            oldPixelData.AddFrame(buffer);
 
-		private DicomDataset Decode(DicomDataset oldDataset, DicomTransferSyntax outSyntax, IDicomCodec codec, DicomCodecParams parameters) {
-			DicomPixelData oldPixelData = DicomPixelData.Create(oldDataset, false);
+            var newDataset = Decode(cloneDataset, OutputSyntax, InputCodec, InputCodecParams);
+            var newPixelData = DicomPixelData.Create(newDataset);
 
-			DicomDataset newDataset = oldDataset.Clone();
-			newDataset.InternalTransferSyntax = outSyntax;
-			DicomPixelData newPixelData = DicomPixelData.Create(newDataset, true);
+            return newPixelData.GetFrame(0);
+        }
 
-			codec.Decode(oldPixelData, newPixelData, parameters);
+        /// <inheritdoc />
+        public IPixelData DecodePixelData(DicomDataset dataset, int frame)
+        {
+            var pixelData = DicomPixelData.Create(dataset);
 
-			ProcessOverlays(oldDataset, newDataset);
+            // is pixel data already uncompressed?
+            if (!dataset.InternalTransferSyntax.IsEncapsulated) return PixelDataFactory.Create(pixelData, frame);
 
-			newDataset.RecalculateGroupLengths(false);
+            var buffer = pixelData.GetFrame(frame);
 
-			return newDataset;
-		}
+            // clone dataset to prevent changes to source
+            var cloneDataset = dataset.Clone();
 
-		private DicomDataset Encode(DicomDataset oldDataset, DicomTransferSyntax inSyntax, IDicomCodec codec, DicomCodecParams parameters) {
-			DicomPixelData oldPixelData = DicomPixelData.Create(oldDataset, false);
+            var oldPixelData = DicomPixelData.Create(cloneDataset, true);
+            oldPixelData.AddFrame(buffer);
 
-			DicomDataset newDataset = oldDataset.Clone();
-			newDataset.InternalTransferSyntax = codec.TransferSyntax;
-			DicomPixelData newPixelData = DicomPixelData.Create(newDataset, true);
+            var newDataset = Decode(cloneDataset, OutputSyntax, InputCodec, InputCodecParams);
+            var newPixelData = DicomPixelData.Create(newDataset);
 
-			codec.Encode(oldPixelData, newPixelData, parameters);
+            return PixelDataFactory.Create(newPixelData, 0);
+        }
 
-			if (codec.TransferSyntax.IsLossy && newPixelData.NumberOfFrames > 0) {
-				newDataset.Add(new DicomCodeString(DicomTag.LossyImageCompression, "01"));
+        private static IDicomCodec InitializeCodec(DicomTransferSyntax syntax)
+        {
+            return syntax.IsEncapsulated && TranscoderManager.HasCodec(syntax)
+                ? TranscoderManager.GetCodec(syntax)
+                : null;
+        }
 
-				List<string> methods = new List<string>();
-				if (newDataset.Contains(DicomTag.LossyImageCompressionMethod))
-					methods.AddRange(newDataset.Get<string[]>(DicomTag.LossyImageCompressionMethod));
-				methods.Add(codec.TransferSyntax.LossyCompressionMethod);
-				newDataset.Add(new DicomCodeString(DicomTag.LossyImageCompressionMethod, methods.ToArray()));
+        private static DicomCodecParams DefaultInputCodecParams(DicomTransferSyntax inputSyntax)
+        {
+            return inputSyntax == DicomTransferSyntax.JPEGProcess1 || inputSyntax == DicomTransferSyntax.JPEGProcess2_4
+                ? new DicomJpegParams { ConvertColorspaceToRGB = true }
+                : null;
+        }
 
-				double oldSize = oldPixelData.GetFrame(0).Size;
-				double newSize = newPixelData.GetFrame(0).Size;
-				string ratio = String.Format("{0:0.000}", oldSize / newSize);
-				newDataset.Add(new DicomDecimalString(DicomTag.LossyImageCompressionRatio, ratio));
-			}
+        private static DicomDataset Decode(
+            DicomDataset oldDataset,
+            DicomTransferSyntax outSyntax,
+            IDicomCodec codec,
+            DicomCodecParams parameters)
+        {
+            if (codec == null)
+                throw new DicomCodecException("Decoding dataset with transfer syntax: {0} is not supported.",
+                    oldDataset.InternalTransferSyntax);
 
-			ProcessOverlays(oldDataset, newDataset);
+            var oldPixelData = DicomPixelData.Create(oldDataset);
 
-			newDataset.RecalculateGroupLengths(false);
+            var newDataset = oldDataset.Clone();
+            newDataset.InternalTransferSyntax = outSyntax;
+            var newPixelData = DicomPixelData.Create(newDataset, true);
 
-			return newDataset;
-		}
+            codec.Decode(oldPixelData, newPixelData, parameters);
 
-		private static void ProcessOverlays(DicomDataset input, DicomDataset output) {
-			DicomOverlayData[] overlays = null;
-			if (input.InternalTransferSyntax.IsEncapsulated)
-				overlays = DicomOverlayData.FromDataset(output);
-			else
-				overlays = DicomOverlayData.FromDataset(input);
+            ProcessOverlays(oldDataset, newDataset);
 
-			foreach (var overlay in overlays) {
-				var dataTag = new DicomTag(overlay.Group, DicomTag.OverlayData.Element);
+            newDataset.RecalculateGroupLengths(false);
 
-				// don't run conversion on non-embedded overlays
-				if (output.Contains(dataTag))
-					continue;
+            return newDataset;
+        }
 
-				output.Add(new DicomTag(overlay.Group, DicomTag.OverlayBitsAllocated.Element), (ushort)1);
-				output.Add(new DicomTag(overlay.Group, DicomTag.OverlayBitPosition.Element), (ushort)0);
+        private static DicomDataset Encode(
+            DicomDataset oldDataset,
+            DicomTransferSyntax outSyntax,
+            IDicomCodec codec,
+            DicomCodecParams parameters)
+        {
+            if (codec == null)
+                throw new DicomCodecException("Encoding dataset to transfer syntax: {0} is not supported.", outSyntax);
 
-				var data = overlay.Data;
-				if (output.InternalTransferSyntax.IsExplicitVR)
-					output.Add(new DicomOtherByte(dataTag, data));
-				else
-					output.Add(new DicomOtherWord(dataTag, data));
-			}
-		}
+            var oldPixelData = DicomPixelData.Create(oldDataset);
 
-		public static DicomDataset ExtractOverlays(DicomDataset dataset) {
-			if (!DicomOverlayData.HasEmbeddedOverlays(dataset))
-				return dataset;
+            var newDataset = oldDataset.Clone();
+            newDataset.InternalTransferSyntax = outSyntax;
+            var newPixelData = DicomPixelData.Create(newDataset, true);
 
-			dataset = dataset.Clone();
+            codec.Encode(oldPixelData, newPixelData, parameters);
 
-			var input = dataset;
-			if (input.InternalTransferSyntax.IsEncapsulated)
-				input = input.ChangeTransferSyntax(DicomTransferSyntax.ExplicitVRLittleEndian);
+            if (outSyntax.IsLossy && newPixelData.NumberOfFrames > 0)
+            {
+                newDataset.AddOrUpdate(new DicomCodeString(DicomTag.LossyImageCompression, "01"));
 
-			ProcessOverlays(input, dataset);
+                var methods = new List<string>();
+                if (newDataset.Contains(DicomTag.LossyImageCompressionMethod))
+                    methods.AddRange(newDataset.Get<string[]>(DicomTag.LossyImageCompressionMethod));
+                methods.Add(outSyntax.LossyCompressionMethod);
+                newDataset.AddOrUpdate(new DicomCodeString(DicomTag.LossyImageCompressionMethod, methods.ToArray()));
 
-			return dataset;
-		}
-	}
+                double oldSize = oldPixelData.GetFrame(0).Size;
+                double newSize = newPixelData.GetFrame(0).Size;
+                var ratio = string.Format("{0:0.000}", oldSize / newSize);
+                newDataset.AddOrUpdate(new DicomDecimalString(DicomTag.LossyImageCompressionRatio, ratio));
+            }
+
+            ProcessOverlays(oldDataset, newDataset);
+
+            newDataset.RecalculateGroupLengths(false);
+
+            return newDataset;
+        }
+
+        private static void ProcessOverlays(DicomDataset input, DicomDataset output)
+        {
+            var overlays = DicomOverlayData.FromDataset(input.InternalTransferSyntax.IsEncapsulated ? output : input);
+
+            foreach (var overlay in overlays)
+            {
+                var dataTag = new DicomTag(overlay.Group, DicomTag.OverlayData.Element);
+
+                // Don't run conversion on non-embedded overlays.
+                if (output.Contains(dataTag)) continue;
+
+                // If embedded overlay, Overlay Bits Allocated should equal Bits Allocated (#110).
+                var bitsAlloc = output.Get(DicomTag.BitsAllocated, (ushort)0);
+                output.AddOrUpdate(new DicomTag(overlay.Group, DicomTag.OverlayBitsAllocated.Element), bitsAlloc);
+
+                var data = overlay.Data;
+                if (output.InternalTransferSyntax.IsExplicitVR) output.AddOrUpdate(new DicomOtherByte(dataTag, data));
+                else output.AddOrUpdate(new DicomOtherWord(dataTag, data));
+            }
+        }
+
+        #endregion
+    }
 }

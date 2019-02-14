@@ -1,61 +1,168 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
 
-namespace Dicom.Network {
-	public class DicomCMoveRequest : DicomRequest {
-		public DicomCMoveRequest(DicomDataset command) : base(command) {
-		}
+namespace Dicom.Network
+{
+    /// <summary>
+    /// Representation of a C-MOVE request.
+    /// </summary>
+    public sealed class DicomCMoveRequest : DicomPriorityRequest
+    {
+        #region CONSTRUCTORS
 
-		public DicomCMoveRequest(string destinationAe, string studyInstanceUid, DicomPriority priority = DicomPriority.Medium) : base(DicomCommandField.CMoveRequest, DicomUID.StudyRootQueryRetrieveInformationModelMOVE, priority) {
-			DestinationAE = destinationAe;
-			Dataset = new DicomDataset();
-			Level = DicomQueryRetrieveLevel.Study;
-			Dataset.Add(DicomTag.StudyInstanceUID, studyInstanceUid);
-		}
+        /// <summary>
+        /// Inititalizes an instance of the <see cref="DicomCMoveRequest"/> class.
+        /// </summary>
+        /// <param name="command">Request command.</param>
+        public DicomCMoveRequest(DicomDataset command)
+            : base(command)
+        {
+        }
 
-		public DicomCMoveRequest(string destinationAe, string studyInstanceUid, string seriesInstanceUid, DicomPriority priority = DicomPriority.Medium) : base(DicomCommandField.CMoveRequest, DicomUID.StudyRootQueryRetrieveInformationModelMOVE, priority) {
-			DestinationAE = destinationAe;
-			Dataset = new DicomDataset();
-			Level = DicomQueryRetrieveLevel.Series;
-			Dataset.Add(DicomTag.StudyInstanceUID, studyInstanceUid);
-			Dataset.Add(DicomTag.SeriesInstanceUID, seriesInstanceUid);
-		}
+        /// <summary>
+        /// Initializes an instance of the <see cref="DicomCMoveRequest"/> class for a specific study.
+        /// </summary>
+        /// <param name="destinationAe">Move destination Application Entity Title.</param>
+        /// <param name="studyInstanceUid">Study instance UID.</param>
+        /// <param name="priority">Request priority.</param>
+        public DicomCMoveRequest(
+            string destinationAe,
+            string studyInstanceUid,
+            DicomPriority priority = DicomPriority.Medium)
+            : base(DicomCommandField.CMoveRequest, DicomUID.StudyRootQueryRetrieveInformationModelMOVE, priority)
+        {
+            DestinationAE = destinationAe;
+            Dataset = new DicomDataset();
+            Level = DicomQueryRetrieveLevel.Study;
+            Dataset.Add(DicomTag.StudyInstanceUID, studyInstanceUid);
+        }
 
-		public DicomCMoveRequest(string destinationAe, string studyInstanceUid, string seriesInstanceUid, string sopInstanceUid, DicomPriority priority = DicomPriority.Medium) : base(DicomCommandField.CMoveRequest, DicomUID.StudyRootQueryRetrieveInformationModelMOVE, priority) {
-			DestinationAE = destinationAe;
-			Dataset = new DicomDataset();
-			Level = DicomQueryRetrieveLevel.Image;
-			Dataset.Add(DicomTag.StudyInstanceUID, studyInstanceUid);
-			Dataset.Add(DicomTag.SeriesInstanceUID, seriesInstanceUid);
-			Dataset.Add(DicomTag.SOPInstanceUID, sopInstanceUid);
-		}
+        /// <summary>
+        /// Initializes an instance of the <see cref="DicomCMoveRequest"/> class for a specific series.
+        /// </summary>
+        /// <param name="destinationAe">Move destination Application Entity Title.</param>
+        /// <param name="studyInstanceUid">Study instance UID.</param>
+        /// <param name="seriesInstanceUid">Series instance UID.</param>
+        /// <param name="priority">Request priority.</param>
+        public DicomCMoveRequest(
+            string destinationAe,
+            string studyInstanceUid,
+            string seriesInstanceUid,
+            DicomPriority priority = DicomPriority.Medium)
+            : base(DicomCommandField.CMoveRequest, DicomUID.StudyRootQueryRetrieveInformationModelMOVE, priority)
+        {
+            DestinationAE = destinationAe;
+            Dataset = new DicomDataset();
+            Level = DicomQueryRetrieveLevel.Series;
+            Dataset.Add(DicomTag.StudyInstanceUID, studyInstanceUid);
+            Dataset.Add(DicomTag.SeriesInstanceUID, seriesInstanceUid);
+        }
 
-		public DicomQueryRetrieveLevel Level {
-			get { return Dataset.Get<DicomQueryRetrieveLevel>(DicomTag.QueryRetrieveLevel); }
-			set {
-				Dataset.Remove(DicomTag.QueryRetrieveLevel);
-				if (value != DicomQueryRetrieveLevel.Worklist)
-					Dataset.Add(DicomTag.QueryRetrieveLevel, value.ToString().ToUpper());
-			}
-		}
+        /// <summary>
+        /// Initializes an instance of the <see cref="DicomCMoveRequest"/> class for a specific image.
+        /// </summary>
+        /// <param name="destinationAe">Move destination Application Entity Title.</param>
+        /// <param name="studyInstanceUid">Study instance UID.</param>
+        /// <param name="seriesInstanceUid">Series instance UID.</param>
+        /// <param name="sopInstanceUid">SOP instance UID.</param>
+        /// <param name="priority">Request priority.</param>
+        public DicomCMoveRequest(
+            string destinationAe,
+            string studyInstanceUid,
+            string seriesInstanceUid,
+            string sopInstanceUid,
+            DicomPriority priority = DicomPriority.Medium)
+            : base(DicomCommandField.CMoveRequest, DicomUID.StudyRootQueryRetrieveInformationModelMOVE, priority)
+        {
+            DestinationAE = destinationAe;
+            Dataset = new DicomDataset();
+            Level = DicomQueryRetrieveLevel.Image;
+            Dataset.Add(DicomTag.StudyInstanceUID, studyInstanceUid);
+            Dataset.Add(DicomTag.SeriesInstanceUID, seriesInstanceUid);
+            Dataset.Add(DicomTag.SOPInstanceUID, sopInstanceUid);
+        }
 
-		public string DestinationAE {
-			get { return Command.Get<string>(DicomTag.MoveDestination); }
-			set { Command.Add(DicomTag.MoveDestination, value); }
-		}
+        #endregion
 
-		public delegate void ResponseDelegate(DicomCMoveRequest request, DicomCMoveResponse response);
+        #region PROPERTIES
 
-		public ResponseDelegate OnResponseReceived;
+        /// <summary>
+        /// Gets the Query&#47;Retrieve level.
+        /// </summary>
+        public DicomQueryRetrieveLevel Level
+        {
+            get
+            {
+                return Dataset.Get<DicomQueryRetrieveLevel>(DicomTag.QueryRetrieveLevel);
+            }
+            private set
+            {
+                switch (value)
+                {
+                    case DicomQueryRetrieveLevel.Patient:
+                    case DicomQueryRetrieveLevel.Study:
+                    case DicomQueryRetrieveLevel.Series:
+                    case DicomQueryRetrieveLevel.Image:
+                        Dataset.AddOrUpdate(DicomTag.QueryRetrieveLevel, value.ToString().ToUpper());
+                        break;
+                    default:
+                        Dataset.Remove(DicomTag.QueryRetrieveLevel);
+                        break;
+                }
+            }
+        }
 
-		internal override void PostResponse(DicomService service, DicomResponse response) {
-			try {
-				if (OnResponseReceived != null)
-					OnResponseReceived(this, (DicomCMoveResponse)response);
-			} catch {
-			}
-		}
-	}
+        /// <summary>
+        /// Gets the move destination Application Entity Title.
+        /// </summary>
+        public string DestinationAE
+        {
+            get
+            {
+                return Command.Get<string>(DicomTag.MoveDestination);
+            }
+            private set
+            {
+                Command.AddOrUpdate(DicomTag.MoveDestination, value);
+            }
+        }
+
+        #endregion
+
+        #region DELEGATES AND EVENTS
+
+        /// <summary>
+        /// Delegate representing a C-MOVE RSP received event handler.
+        /// </summary>
+        /// <param name="request">C-MOVE RQ.</param>
+        /// <param name="response">C-MOVE RSP.</param>
+        public delegate void ResponseDelegate(DicomCMoveRequest request, DicomCMoveResponse response);
+
+        /// <summary>
+        /// Gets or sets the handler for the C-MOVE response received event.
+        /// </summary>
+        public ResponseDelegate OnResponseReceived;
+
+        #endregion
+
+        #region METHODS
+
+        /// <summary>
+        /// Invoke the event handler upon receiving a C-MOVE response.
+        /// </summary>
+        /// <param name="service">Associated DICOM service.</param>
+        /// <param name="response">C-MOVE response.</param>
+        protected internal override void PostResponse(DicomService service, DicomResponse response)
+        {
+            try
+            {
+                if (OnResponseReceived != null) OnResponseReceived(this, (DicomCMoveResponse)response);
+            }
+            catch
+            {
+            }
+        }
+
+        #endregion
+    }
 }

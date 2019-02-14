@@ -1,52 +1,111 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
 using System.Text;
 
-namespace Dicom.Network {
-	public class DicomCFindResponse : DicomResponse {
-		public DicomCFindResponse(DicomDataset command) : base(command) {
-		}
+namespace Dicom.Network
+{
+    /// <summary>
+    /// Representation of a C-FIND response.
+    /// </summary>
+    /// <remarks>For completeness, a C-FIND response with status <see cref="DicomStatus.Success"/> should contain a 
+    /// <see cref="DicomMessage.Dataset"/> describing the result(s) of the C-FIND request.
+    /// </remarks>
+    public sealed class DicomCFindResponse : DicomResponse
+    {
+        /// <summary>
+        /// Initializes an instance of the <see cref="DicomCFindResponse"/> class.
+        /// </summary>
+        /// <param name="command">Command associated with the C-FIND response.</param>
+        public DicomCFindResponse(DicomDataset command)
+            : base(command)
+        {
+        }
 
-		public DicomCFindResponse(DicomCFindRequest request, DicomStatus status) : base(request, status) {
-		}
+        /// <summary>
+        /// Initializes an instance of the <see cref="DicomCFindResponse"/> class.
+        /// </summary>
+        /// <param name="request">C-FIND request for which the response should be made.</param>
+        /// <param name="status">Response status.</param>
+        public DicomCFindResponse(DicomCFindRequest request, DicomStatus status)
+            : base(request, status)
+        {
+        }
 
-		public int Remaining {
-			get { return Command.Get<ushort>(DicomTag.NumberOfRemainingSuboperations, 0); }
-			set { Command.Add(DicomTag.NumberOfRemainingSuboperations, (ushort)value); }
-		}
+        /// <summary>
+        /// Gets or sets the number of remaining sub-operations.
+        /// </summary>
+        public int Remaining
+        {
+            get
+            {
+                return Command.Get(DicomTag.NumberOfRemainingSuboperations, (ushort)0);
+            }
+            set
+            {
+                Command.AddOrUpdate(DicomTag.NumberOfRemainingSuboperations, (ushort)value);
+            }
+        }
 
-		public int Completed {
-			get { return Command.Get<ushort>(DicomTag.NumberOfCompletedSuboperations, 0); }
-			set { Command.Add(DicomTag.NumberOfCompletedSuboperations, (ushort)value); }
-		}
+        /// <summary>
+        /// Gets or sets the number of completed sub-operations.
+        /// </summary>
+        public int Completed
+        {
+            get
+            {
+                return Command.Get(DicomTag.NumberOfCompletedSuboperations, (ushort)0);
+            }
+            set
+            {
+                Command.AddOrUpdate(DicomTag.NumberOfCompletedSuboperations, (ushort)value);
+            }
+        }
 
-		public int Warnings {
-			get { return Command.Get<ushort>(DicomTag.NumberOfWarningSuboperations, 0); }
-			set { Command.Add(DicomTag.NumberOfWarningSuboperations, (ushort)value); }
-		}
+        /// <summary>
+        /// Gets or sets the number of warning sub-operations.
+        /// </summary>
+        public int Warnings
+        {
+            get
+            {
+                return Command.Get(DicomTag.NumberOfWarningSuboperations, (ushort)0);
+            }
+            set
+            {
+                Command.AddOrUpdate(DicomTag.NumberOfWarningSuboperations, (ushort)value);
+            }
+        }
 
-		public int Failures {
-			get { return Command.Get<ushort>(DicomTag.NumberOfFailedSuboperations, 0); }
-			set { Command.Add(DicomTag.NumberOfFailedSuboperations, (ushort)value); }
-		}
+        /// <summary>
+        /// Gets or sets the number of failed sub-operations.
+        /// </summary>
+        public int Failures
+        {
+            get
+            {
+                return Command.Get(DicomTag.NumberOfFailedSuboperations, (ushort)0);
+            }
+            set
+            {
+                Command.AddOrUpdate(DicomTag.NumberOfFailedSuboperations, (ushort)value);
+            }
+        }
 
-		public override string ToString() {
-			StringBuilder sb = new StringBuilder();
-			sb.AppendFormat("{0} [{1}]: {2}", ToString(Type), RequestMessageID, Status.Description);
-			if (Completed != 0)
-				sb.AppendFormat("\n\t\tCompleted:	{0}", Completed);
-			if (Remaining != 0)
-				sb.AppendFormat("\n\t\tRemaining:	{0}", Remaining);
-			if (Warnings != 0)
-				sb.AppendFormat("\n\t\tWarnings:	{0}", Warnings);
-			if (Failures != 0)
-				sb.AppendFormat("\n\t\tFailures:	{0}", Failures);
-			if (Status.State != DicomState.Pending && Status.State != DicomState.Success) {
-				if (!String.IsNullOrEmpty(Status.ErrorComment))
-					sb.AppendFormat("\n\t\tError:		{0}", Status.ErrorComment);
-			}
-			return sb.ToString();
-		}
-	}
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("{0} [{1}]: {2}", ToString(Type), RequestMessageID, Status.Description);
+            if (Completed != 0) sb.AppendFormat("\n\t\tCompleted:	{0}", Completed);
+            if (Remaining != 0) sb.AppendFormat("\n\t\tRemaining:	{0}", Remaining);
+            if (Warnings != 0) sb.AppendFormat("\n\t\tWarnings:	{0}", Warnings);
+            if (Failures != 0) sb.AppendFormat("\n\t\tFailures:	{0}", Failures);
+            if (Status.State != DicomState.Pending && Status.State != DicomState.Success)
+            {
+                if (!string.IsNullOrEmpty(Status.ErrorComment)) sb.AppendFormat("\n\t\tError:		{0}", Status.ErrorComment);
+            }
+            return sb.ToString();
+        }
+    }
 }

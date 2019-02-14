@@ -1,62 +1,111 @@
-﻿using System;
+﻿// Copyright (c) 2012-2018 fo-dicom contributors.
+// Licensed under the Microsoft Public License (MS-PL).
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Dicom.IO.Buffer {
-	public class CompositeByteBuffer : IByteBuffer {
-		public CompositeByteBuffer(params IByteBuffer[] buffers) {
-			Buffers = new List<IByteBuffer>(buffers);
-		}
+namespace Dicom.IO.Buffer
+{
+    /// <summary>
+    /// Implementation of an <see cref="IByteBuffer"/> consisting of a collection of <see cref="IByteBuffer"/> instances.
+    /// </summary>
+    public class CompositeByteBuffer : IByteBuffer
+    {
+        #region CONSTRUCTORS
 
-		public IList<IByteBuffer> Buffers {
-			get;
-			private set;
-		}
+        /// <summary>
+        /// Initializes an instance of the <see cref="CompositeByteBuffer"/> class.
+        /// </summary>
+        /// <param name="buffers">Collection of buffers to initially constitute the <see cref="CompositeByteBuffer"/> instance.</param>
+        public CompositeByteBuffer(IEnumerable<IByteBuffer> buffers)
+        {
+            Buffers = new List<IByteBuffer>(buffers);
+        }
 
-		public bool IsMemory {
-			get { return true; }
-		}
+        /// <summary>
+        /// Initializes an instance of the <see cref="CompositeByteBuffer"/> class.
+        /// </summary>
+        /// <param name="buffers">Array of buffers to initially constitute the <see cref="CompositeByteBuffer"/> instance.</param>
+        public CompositeByteBuffer(params IByteBuffer[] buffers)
+        {
+            Buffers = new List<IByteBuffer>(buffers);
+        }
 
-		public uint Size {
-			get { return (uint)Buffers.Sum(x => x.Size); }
-		}
+        #endregion
 
-		public byte[] Data {
-			get {
-				byte[] data = new byte[Size];
-				int offset = 0;
-				foreach (IByteBuffer buffer in Buffers) {
-					System.Buffer.BlockCopy(buffer.Data, 0, data, offset, (int)buffer.Size);
-					offset += (int)buffer.Size;
-				}
-				return data;
-			}
-		}
+        #region PROPERTIES
 
-		public byte[] GetByteRange(int offset, int count) {
-			int pos = 0;
-			for (; pos < Buffers.Count && offset > Buffers[pos].Size; pos++)
-				offset -= (int)Buffers[pos].Size;
+        /// <summary>
+        /// Gets the collection of <see cref="IByteBuffer"/> constituting the <see cref="CompositeByteBuffer"/>.
+        /// </summary>
+        public IList<IByteBuffer> Buffers { get; }
 
-			int offset2 = 0;
-			byte[] data = new byte[count];
-			for (; pos < Buffers.Count && count > 0; pos++) {
-				int remain = (int)Buffers[pos].Size - offset;
+        /// <inheritdoc />
+        public bool IsMemory => true;
 
-				if (Buffers[pos].IsMemory)
-					System.Buffer.BlockCopy(Buffers[pos].Data, offset, data, offset2, remain);
-				else {
-					byte[] temp = Buffers[pos].GetByteRange(offset, remain);
-					System.Buffer.BlockCopy(temp, 0, data, offset2, remain);
-				}
+        /// <inheritdoc />
+        public uint Size => (uint)Buffers.Sum(x => x.Size);
 
-				count -= remain;
-				offset2 += remain;
-				if (offset > 0)
-					offset = 0;
-			}
+        /// <inheritdoc />
+        public byte[] Data
+        {
+            get
+            {
+                var data = new byte[Size];
+                var offset = 0;
+                foreach (var buffer in Buffers)
+                {
+                    System.Buffer.BlockCopy(buffer.Data, 0, data, offset, (int)buffer.Size);
+                    offset += (int)buffer.Size;
+                }
+                return data;
+            }
+        }
 
-			return data;
-		}
-	}
+        #endregion
+
+        #region METHODS
+
+        /// <inheritdoc />
+        public byte[] GetByteRange(int offset, int count)
+        {
+            var pos = 0;
+            for (; pos < Buffers.Count && offset > Buffers[pos].Size; pos++) offset -= (int)Buffers[pos].Size;
+
+            var offset2 = 0;
+            var data = new byte[count];
+            for (; pos < Buffers.Count && count > 0; pos++)
+            {
+                var remain = Math.Min((int)Buffers[pos].Size - offset, count);
+
+                if (Buffers[pos].IsMemory)
+                {
+                    try
+                    {
+                        System.Buffer.BlockCopy(Buffers[pos].Data, offset, data, offset2, remain);
+                    }
+                    catch (Exception)
+                    {
+                        data = Buffers[pos].Data.ToArray();
+                    }
+
+                }
+
+                else
+                {
+                    var temp = Buffers[pos].GetByteRange(offset, remain);
+                    System.Buffer.BlockCopy(temp, 0, data, offset2, remain);
+                }
+
+                count -= remain;
+                offset2 += remain;
+                if (offset > 0) offset = 0;
+            }
+
+            return data;
+        }
+
+        #endregion
+    }
 }
